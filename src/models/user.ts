@@ -11,7 +11,6 @@ export interface IUserInput {
 }
 
 export interface IUser extends Document, IUserInput {
-  _id: string
   createdAt: Date
   updatedAt: Date
 }

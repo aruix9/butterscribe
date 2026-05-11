@@ -11,6 +11,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Redirect authenticated users away from auth pages
+  if (pathname.startsWith("/auth") && token) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   // Allow public routes
   if (
     pathname.startsWith("/auth") ||
@@ -31,17 +36,13 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/",
-    "/orders",
     "/api/:path*",
-    "/ai/:path*",
-    "/audit/:path*",
-    "/backlinks/:path*",
-    "/keywords/:path*",
-    "/checkout",
-    "/order-confirmed",
-    "/cart",
-    "/orders",
-    "/admin/:path*",
+    "/auth/:path*",
+    "/approvals/:path*",
+    "/content-calendar/:path*",
+    "/content-library/:path*",
+    "/create-content/:path*",
     "/dashboard/:path*",
+    "/live-preview/:path*",
   ],
 };

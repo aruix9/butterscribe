@@ -14,7 +14,7 @@ export const handleSignInSumit = async (
     redirect: true, // Redirect after successful login
     email: values.email,
     password: values.password,
-    callbackUrl: "/", // Redirect URL after login
+    callbackUrl: "/dashboard", // Redirect URL after login
   });
 
   if (result?.error) {
@@ -49,7 +49,7 @@ export const handleSignUpSubmit = async (
       redirect: true, // Redirect after successful login
       email: values.email,
       password: values.password,
-      callbackUrl: "/", // Redirect URL after login
+      callbackUrl: "/dashboard", // Redirect URL after login
     });
 
     if (result?.error) {

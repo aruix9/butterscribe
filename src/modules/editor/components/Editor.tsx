@@ -11,6 +11,7 @@ export function RichTextEditor() {
   const editor = useEditor({
     extensions: [StarterKit],
     content: content,
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       setContent(editor.getHTML());
     },
