@@ -13,20 +13,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, title, body, status } = await req.json();
+    const { id, title, description, body, status, startDate, endDate } = await req.json();
 
-    if (!title || !body) {
-      return NextResponse.json({ error: "Title and body are required" }, { status: 400 });
+    if (!title && !id) {
+      return NextResponse.json({ error: "Title is required for new documents" }, { status: 400 });
     }
 
     await connectToDatabase();
 
     let document;
     if (id) {
+      const updateData: any = {};
+      if (title) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (body) updateData.body = body;
+      if (status) updateData.status = status;
+      if (startDate !== undefined) updateData.startDate = startDate;
+      if (endDate !== undefined) updateData.endDate = endDate;
+
       document = await Document.findOneAndUpdate(
         // @ts-ignore
         { _id: id, userId: session.user.id },
-        { title, body, status },
+        updateData,
         { returnDocument: 'after' }
       );
       if (!document) {
@@ -35,12 +43,16 @@ export async function POST(req: Request) {
     } else {
       document = await Document.create({
         title,
-        body,
+        description,
+        body: body || '',
         // @ts-ignore
         userId: session.user.id,
         status: status || 'draft',
+        startDate,
+        endDate
       });
     }
+
 
     return NextResponse.json(document, { status: id ? 200 : 201 });
   } catch (error) {
@@ -49,7 +61,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -58,14 +70,46 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search') || '';
+    const status = searchParams.get('status') || 'all';
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const skip = (page - 1) * limit;
+
     await connectToDatabase();
 
-    // @ts-ignore
-    const documents = await Document.find({ userId: session.user.id }).sort({ updatedAt: -1 });
+    const query: any = { 
+      // @ts-ignore
+      userId: session.user.id 
+    };
 
-    return NextResponse.json(documents);
+    if (search) {
+      query.title = { $regex: search, $options: 'i' };
+    }
+
+    if (status !== 'all') {
+      query.status = status;
+    }
+
+    const [documents, total] = await Promise.all([
+      Document.find(query)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Document.countDocuments(query)
+    ]);
+
+    return NextResponse.json({
+      documents,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (error) {
     console.error("Error fetching documents:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
