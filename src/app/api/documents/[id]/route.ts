@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { connectToDatabase } from "@/lib/db";
 import Document from "@/models/document";
+import AiGeneration from "@/models/aiGeneration";
 
 export async function GET(
   req: Request,
@@ -21,13 +22,21 @@ export async function GET(
     await connectToDatabase();
 
     // @ts-ignore
-    const document = await Document.findOne({ _id: id, userId: session.user.id });
+    const document = await Document.findOne({ _id: id, userId: session.user.id }).lean();
 
     if (!document) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
-    return NextResponse.json(document);
+    // If document has a linked AI generation, fetch and attach it
+    let aiGeneration = null;
+    // @ts-ignore
+    if (document.aiGenerationId) {
+      // @ts-ignore
+      aiGeneration = await AiGeneration.findById(document.aiGenerationId).lean();
+    }
+
+    return NextResponse.json({ ...document, aiGeneration });
   } catch (error) {
     console.error("Error fetching document:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

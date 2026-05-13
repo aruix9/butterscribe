@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, title, description, body, status, startDate, endDate } = await req.json();
+    const { id, title, description, body, status, startDate, endDate, aiGenerationId } = await req.json();
 
     if (!title && !id) {
       return NextResponse.json({ error: "Title is required for new documents" }, { status: 400 });
@@ -30,12 +30,13 @@ export async function POST(req: Request) {
       if (status) updateData.status = status;
       if (startDate !== undefined) updateData.startDate = startDate;
       if (endDate !== undefined) updateData.endDate = endDate;
+      if (aiGenerationId) updateData.aiGenerationId = aiGenerationId;
 
       document = await Document.findOneAndUpdate(
         // @ts-ignore
         { _id: id, userId: session.user.id },
-        updateData,
-        { returnDocument: 'after' }
+        { $set: updateData },
+        { new: true }
       );
       if (!document) {
         return NextResponse.json({ error: "Document not found or unauthorized" }, { status: 404 });

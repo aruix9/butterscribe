@@ -1,10 +1,22 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { connectToDatabase } from "@/lib/db";
+import AiGeneration from "@/models/aiGeneration";
+import Document from "@/models/document";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || "");
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+
+    // @ts-ignore
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { prompt } = await req.json();
 
     if (!prompt) {
@@ -64,7 +76,34 @@ export async function POST(req: Request) {
     const response = await result.response;
     const text = response.text();
 
-    return NextResponse.json({ text });
+    // Save to database
+    await connectToDatabase();
+
+    // @ts-ignore
+    const userId = session.user.id;
+    const title = prompt.length > 50 ? `${prompt.substring(0, 50)}...` : prompt;
+
+    // 1. Create a blank draft document for the user to write in
+    const newDocument = await Document.create({
+      title: title,
+      body: '',
+      userId,
+      status: 'draft',
+    });
+
+    // 2. Create the AI generation record, linked to the new document
+    const aiGen = await AiGeneration.create({
+      title: title,
+      prompt: prompt,
+      response: text,
+      userId,
+      documentId: newDocument._id,
+    });
+
+    // 3. Back-link the document to its AI generation
+    await Document.findByIdAndUpdate(newDocument._id, { aiGenerationId: aiGen._id });
+
+    return NextResponse.json({ text, documentId: newDocument._id.toString(), aiGenerationId: aiGen._id.toString() });
   } catch (error: any) {
     console.error("Gemini Generation Error:", error);
     return NextResponse.json({ error: error.message || "Failed to generate content" }, { status: 500 });

@@ -27,12 +27,14 @@ import { DocumentOutline } from "../(components)/DocumentOutline";
 import { Toolbar } from "../(components)/Toolbar";
 import { ReviewSidebar } from "../(components)/ReviewSidebar";
 import { EditorModals } from "../(components)/EditorModals";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 export default function CreateContentPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const aiGenerationId = searchParams.get('aiGenerationId');
 
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
@@ -41,6 +43,8 @@ export default function CreateContentPage() {
   const [headings, setHeadings] = useState<{ text: string; level: number; pos: number }[]>([]);
   const [linkModal, setLinkModal] = useState({ isOpen: false, url: '' });
   const [imageModal, setImageModal] = useState({ isOpen: false, url: '' });
+  const [aiGhostwriterModal, setAiGhostwriterModal] = useState({ isOpen: false });
+  const [aiGeneration, setAiGeneration] = useState<{ title: string; prompt: string; response: string; createdAt: string } | null>(null);
   const [title, setTitle] = useState("New Document");
   const [documentId, setDocumentId] = useState<string | null>(id !== "new" ? id : null);
   const [isSaving, setIsSaving] = useState(false);
@@ -116,6 +120,8 @@ export default function CreateContentPage() {
             setContent(data.body);
             setStatus(data.status);
             lastSavedContent.current = data.body;
+            // Set linked AI generation if present
+            if (data.aiGeneration) setAiGeneration(data.aiGeneration);
             if (editor) {
               editor.commands.setContent(data.body);
               if (data.status === 'approved') {
@@ -149,7 +155,8 @@ export default function CreateContentPage() {
           id: documentId,
           title,
           body: currentContent,
-          status: status
+          status: status,
+          ...(aiGenerationId ? { aiGenerationId } : {}),
         }),
       });
 
@@ -169,7 +176,7 @@ export default function CreateContentPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [documentId, title, router, editor, status]);
+  }, [documentId, title, router, editor, status, aiGenerationId]);
 
   // Autosave effect
   useEffect(() => {
@@ -301,9 +308,15 @@ export default function CreateContentPage() {
             </div>
 
             <div className="absolute bottom-6 right-6 flex items-center gap-3">
-              <button className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-full px-6 py-3 flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all active:scale-95 group">
+              <button
+                onClick={() => setAiGhostwriterModal({ isOpen: true })}
+                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-full px-6 py-3 flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all active:scale-95 group"
+              >
                 <Sparkles className="w-5 h-5 text-primary group-hover:rotate-12 transition-transform" />
                 <span className="text-sm font-semibold text-zinc-900 dark:text-white font-sans">Ask AI Ghostwriter</span>
+                {aiGeneration && (
+                  <span className="ml-1 w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                )}
               </button>
             </div>
           </div>
@@ -330,6 +343,9 @@ export default function CreateContentPage() {
           imageModal={imageModal}
           setImageModal={setImageModal}
           fileInputRef={fileInputRef}
+          aiGhostwriterModal={aiGhostwriterModal}
+          setAiGhostwriterModal={setAiGhostwriterModal}
+          aiGeneration={aiGeneration}
         />
       </main>
     </div>

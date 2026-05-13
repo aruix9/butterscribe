@@ -281,13 +281,6 @@ export function Toolbar({
             />
           </button>
         </div>
-
-        <select className="bg-zinc-100 dark:bg-zinc-800 border-none rounded text-xs font-semibold py-1 px-3 focus:ring-0 cursor-pointer text-zinc-900 dark:text-zinc-100">
-          <option>ChatGPT</option>
-          <option>Perplexity</option>
-          <option>Gemini</option>
-          <option>Keywords</option>
-        </select>
       </div>
     </div>
   );

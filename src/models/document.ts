@@ -4,6 +4,7 @@ export interface IDocumentInput {
   title: string
   description?: string
   body?: string
+  aiGenerationId?: Types.ObjectId
 
   userId: Types.ObjectId
   status: 'draft' | 'published' | 'archived' | 'approved' | 'changes_requested'
@@ -21,6 +22,7 @@ const DocumentSchema = new Schema<IDocument>(
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     body: { type: String, default: '' },
+    aiGenerationId: { type: Schema.Types.ObjectId, ref: 'AiGeneration' },
 
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     status: { type: String, enum: ['draft', 'published', 'archived', 'approved', 'changes_requested'], default: 'draft' },
