@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { connectToDatabase } from "@/lib/db";
@@ -6,15 +6,19 @@ import AiGeneration from "@/models/aiGeneration";
 import { Types } from "mongoose";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { documentId: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
 
-    // @ts-ignore
-    if (!session || !session.user || !session.user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
     const { documentId } = await params;
@@ -27,13 +31,18 @@ export async function GET(
 
     const aiGeneration = await AiGeneration.findOne({
       documentId: new Types.ObjectId(documentId),
-      // @ts-ignore
-      userId: new Types.ObjectId(session.user.id),
+      userId: new Types.ObjectId(userId),
     });
 
-    return NextResponse.json({ aiGeneration: aiGeneration ?? null });
+    return NextResponse.json({
+      aiGeneration: aiGeneration ?? null,
+    });
   } catch (error) {
     console.error("Error fetching AI generation:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

@@ -21,6 +21,7 @@ type ResetPasswordProps = {
 
 const ResetPassword = ({ params }: ResetPasswordProps) => {
   const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false)
   const [token, setToken] = useState<{ token: string }>()
 
   useEffect(() => {
@@ -67,6 +68,8 @@ const ResetPassword = ({ params }: ResetPasswordProps) => {
             className='space-y-4 bg-blue-50 p-8 rounded-lg w-sm'
           >
             <PasswordField
+              setShowPassword={setShowPassword}
+              showPassword={showPassword}
               field={form.register('password')}
               error={form.formState.errors?.password}
             />
