@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:develop": "cp env/.env.develop .env.local && next dev",
-    "dev:preview": "cp env/.env.preview .env.local && next dev",
-    "dev:prod": "cp env/.env.production .env.local && next dev",
+    "dev:develop": "cp env/.env.development.local .env.local && next dev",
+    "dev:preview": "cp env/.env.preview.local .env.local && next dev",
+    "dev:prod": "cp env/.env.production.local .env.local && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
