@@ -57,13 +57,7 @@ const AuthLinks = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      ) : pathname.includes("/signin") ? (
-        <Button>
-          <Link href={data.signup.slug} passHref>
-            {data.signup.title}
-          </Link>
-        </Button>
-      ) : (
+      ) : pathname.includes("/signin") ? '' : (
         <Button>
           <Link href={data.signin.slug} passHref>
             {data.signin.title}

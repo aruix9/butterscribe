@@ -1,7 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react'
-import { FormFieldProps } from '../../../../types/forms'
 import { FormControl, FormItem, FormLabel, FormMessage } from '../../ui/form'
 import { Input } from '../../ui/input'
+import { PassowrdFieldProps } from '../../../../types/forms'
 
 const PasswordField = ({
   field,
@@ -10,7 +10,7 @@ const PasswordField = ({
   setShowPassword,
   placeholder = 'Enter password',
   label = 'Password',
-}: FormFieldProps) => {
+}: PassowrdFieldProps) => {
   return (
     <FormItem className="space-y-2">
       <FormLabel>{label}</FormLabel>

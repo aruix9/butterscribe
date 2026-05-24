@@ -12,13 +12,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { TrendingUp } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { useRouter } from 'next/navigation'
 
 import signInImage from '../../../../public/images/photo-1551288049-bebda4e38f71.jpeg'
 
 const SignIn = () => {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false)
 
   const form = useForm<z.infer<typeof signInSchema>>({
@@ -29,7 +31,7 @@ const SignIn = () => {
     },
   })
   const onSubmit = async (values: z.infer<typeof signInSchema>) => {
-    handleSignInSumit(values)
+    handleSignInSumit(values, router)
   }
 
   return (
