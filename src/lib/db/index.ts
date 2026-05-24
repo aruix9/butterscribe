@@ -1,18 +1,58 @@
 import mongoose from "mongoose";
 
+type Cached = {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const cached = (global as any).mongoose || { conn: null, promise: null };
+const globalWithMongoose = global as any;
+
+const cached: Cached = globalWithMongoose.mongoose || {
+  conn: null,
+  promise: null,
+};
+
+globalWithMongoose.mongoose = cached;
 
 export const connectToDatabase = async (
-  MONGODB_URI = process.env.MONGODB_URI + "/" + process.env.MONGODB_NAME,
+  MONGODB_URI = `${process.env.MONGODB_URI}/${process.env.MONGODB_NAME}`,
 ) => {
-  if (cached.conn) return cached.conn;
+  if (!MONGODB_URI) {
+    throw new Error("MongoDB URI is missing");
+  }
 
-  if (!MONGODB_URI) throw new Error("MongoDB URI is missing");
+  // Reuse cached connection
+  if (cached.conn) {
+    console.log(
+      `✅ Using cached MongoDB connection - ${process.env.MONGODB_NAME}`,
+    );
 
-  cached.promise = cached.promise || mongoose.connect(MONGODB_URI);
+    return cached.conn;
+  }
 
-  cached.conn = await cached.promise;
+  try {
+    // Create connection promise only once
+    if (!cached.promise) {
+      console.log(
+        `🔄 Creating new MongoDB connection - ${process.env.MONGODB_NAME}`,
+      );
 
-  return cached.conn;
+      cached.promise = mongoose.connect(MONGODB_URI);
+    }
+
+    cached.conn = await cached.promise;
+
+    console.log(
+      `✅ DB connection successful! - ${process.env.MONGODB_NAME}`,
+    );
+
+    return cached.conn;
+  } catch (error) {
+    cached.promise = null;
+
+    console.error("❌ MongoDB connection failed:", error);
+
+    throw error;
+  }
 };

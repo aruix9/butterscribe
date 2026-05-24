@@ -8,30 +8,34 @@ import { signIn } from "next-auth/react";
 
 export const handleSignInSumit = async (
   values: z.infer<typeof signInSchema>,
+  router: AppRouterInstance,
 ) => {
   // Auto-login with NextAuth
   const result = await signIn("credentials", {
-    redirect: true, // Redirect after successful login
+    redirect: false, // Redirect after successful login
     email: values.email,
     password: values.password,
     callbackUrl: "/dashboard", // Redirect URL after login
   });
 
   if (result?.error) {
-    if (result.error === "CredentialsSignin") {
-      toast.error("Login Failed", {
-        description: "Invalid email or password",
-      });
-    } else {
-      toast.error("Login Failed", {
-        description: result.error,
-      });
-    }
-  } else {
-    toast.success("Login Success", {
-      description: "You have successfully logged in.",
+    toast.error("Login Failed", {
+      description:
+        result.error === "CredentialsSignin"
+          ? "Invalid email or password"
+          : result.error,
     });
+
+    return;
   }
+
+  toast.success("Login Success", {
+    description: "You have successfully logged in.",
+  });
+
+  // Redirect manually
+  router.push(result?.url || "/dashboard");
+  router.refresh(); // refresh auth/session state
 };
 
 export const handleSignUpSubmit = async (
