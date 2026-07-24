@@ -1,122 +1,211 @@
-# Butterscribe - Architecture & Design Document
+# Butterscribe - System Design Document & Feature Specification
 
-## 1. Project Overview
+## 1. Executive Summary
 
-**Butterscribe** is a Next.js 15 (App Router) based full-stack application designed as a modern SEO Content Management SaaS platform. It provides tools for content creation, team approvals, keyword analysis, and content library management, featuring a fully functional rich text editor powered by Tiptap and AI-assisted workflows.
+**Butterscribe** is an enterprise-grade AI-powered content strategy and publishing platform built with Next.js 16 (App Router), React 19, TypeScript, and MongoDB. The application seamlessly bridges AI-driven content generation, rich text editing, editorial collaboration, content calendar planning, and multi-stage approval workflows into a unified workspace.
 
-## 2. Technology Stack
+---
 
-- **Framework**: Next.js 15.3 (App Router, Turbopack)
-- **Frontend/Styling**: React 19, Tailwind CSS 4, Radix UI, Base UI (`@base-ui/react`), and custom `shadcn`-inspired components.
-- **Rich Text Editor**: Tiptap (`@tiptap/react`, `@tiptap/starter-kit`)
-- **Icons**: Lucide React & HugeIcons
-- **State Management**: Zustand
-- **Database & ORM**: MongoDB with Mongoose
-- **Authentication**: NextAuth.js (v4) using JWT strategy and Credentials Provider (with `bcryptjs`).
-- **Validation**: React Hook Form with Zod schema validation.
+## 2. Technical Stack & Architecture
 
-## 3. Project Structure
+### 2.1 Core Technologies
+- **Framework**: [Next.js 16.2.6](https://nextjs.org/) (App Router, Server Components & Client Components)
+- **UI & View Layer**: [React 19.2.4](https://react.dev/), Tailwind CSS 4, Radix UI primitives, Lucide / Hugeicons icon sets
+- **Database & ORM**: MongoDB with [Mongoose 9.6.2](https://mongoosejs.com/)
+- **Authentication**: [NextAuth.js 4.24.14](https://next-auth.js.org/) using JWT strategy and custom credentials provider with Bcrypt.js password hashing
+- **AI Integration**: [@google/generative-ai 0.24.1](https://www.npmjs.com/package/@google/generative-ai) utilizing Gemini API (`gemini-3-flash-preview`)
+- **Rich Text Editor**: [Tiptap Editor 3.23.5](https://tiptap.dev/) with extensions for links, images, highlights, colors, text alignment, and underlines
+- **Calendar & Scheduling**: [FullCalendar 6.1.20](https://fullcalendar.io/) (`dayGrid`, `timeGrid`, `interaction` plugins)
+- **State Management**: [Zustand 5.0.13](https://zustand-demo.pmnd.rs/) for client-side layout, editor, and keyword states
+- **Form Handling & Validation**: [React Hook Form 7.76.0](https://react-hook-form.com/) integrated with [Zod 4.4.3](https://zod.dev/) resolvers
+- **Email Service**: Nodemailer 7.0.13 for password resets and notifications
+- **Notifications**: Sonner toast notification library
 
-The codebase strictly follows a feature-module driven architecture combined with Next.js App Router conventions to ensure separation of concerns and maintainability.
+---
 
-```text
-/var/www/butterscribe/src/
-├── app/                      # Next.js App Router (Pages & Routing)
-│   ├── api/                  # Backend API routes (e.g., auth, next-auth)
-│   ├── approvals/            # Content approvals workflow page
-│   ├── auth/                 # Authentication pages (signin, signup, password resets)
-│   ├── content-calendar/     # Content planning and scheduling UI
-│   ├── content-library/      # Content repository page
-│   ├── create-content/       # Rich text editor and content creation interface
-│   ├── dashboard/            # Main SaaS dashboard overview
-│   └── live-preview/         # Document preview and team feedback interface
-│
-├── components/               # Shared & Core UI Components
-│   ├── layout/               # Global layouts
-│   │   ├── cms/              # Layout for CMS/Public pages (Header, Footer, Nav)
-│   │   └── dashboard/        # Layout for the authenticated SaaS (Sidebar, Header)
-│   ├── shared/               # Reusable generic components (Logo, Form Fields)
-│   └── ui/                   # Primitive UI components (Button, Badge, Card, etc.)
-│
-├── modules/                  # Feature-specific Domain Modules
-│   ├── dashboard/            # Dashboard widgets (StatsGrid, ContentTable, HeroPrompt)
-│   ├── editor/               # Tiptap Rich Text Editor components and local store
-│   └── keywords/             # Keyword analysis components and local store
-│
-├── store/                    # Global State Management (Zustand)
-│   └── layoutStore.ts        # Manages global UI state (Sidebar collapse, Theme)
-│
-├── models/                   # Database Schemas (Mongoose)
-│   └── user.ts               # Shared User schema (auth credentials, roles)
-│
-├── lib/                      # Utilities and API functions
-│   ├── actions/              # Server/Client actions (e.g., Auth form submissions)
-│   ├── db.ts                 # MongoDB connection utility
-│   └── utils.ts              # Generic utilities (e.g., tailwind `cn` merger)
-│
-└── schemas/                  # Zod Validation Schemas
-    └── zodAuthFormSchemas.ts # Validation rules for auth forms
+## 3. High-Level Architecture & System Data Flow
+
+```mermaid
+flowchart TD
+    User([User / Content Creator]) --> Dashboard[Dashboard / Hero Prompt]
+    User --> Editor[Rich Text Editor]
+    User --> LivePreview[Live Preview & Inline Comments]
+    User --> Calendar[Content Calendar]
+    User --> Library[Content Library]
+
+    Dashboard -->|POST Prompt| APIGenerate[/api/generate/]
+    APIGenerate -->|Call Gemini API| Gemini[Google Gemini 3 Flash]
+    Gemini -->|Return Structured Strategy| APIGenerate
+    APIGenerate -->|Create Doc & AI Record| MongoDB[(MongoDB Database)]
+
+    Editor -->|Auto-save / Manual save| APIDocuments[/api/documents/]
+    APIDocuments -->|Persist HTML & Metadata| MongoDB
+
+    LivePreview -->|GET / POST Comments| APIComments[/api/comments/]
+    LivePreview -->|PATCH Status| APIDocumentById[/api/documents/:id/]
+    APIComments --> MongoDB
+    APIDocumentById --> MongoDB
+
+    Calendar -->|Drag & Drop Schedule| APIDocuments
 ```
 
-## 4. Key Architectural Decisions
+---
 
-### 4.1 Routing & Middleware
-- The application uses the `src/middleware.ts` to intercept routes.
-- **Protected Routes**: Paths like `/dashboard`, `/approvals`, `/content-library`, and `/create-content` are strictly protected. Users without valid NextAuth JWT tokens are redirected to `/auth/signin`.
-- **Auth Guarding**: Authenticated users navigating to `/auth/*` pages are instantly redirected to `/dashboard` to prevent redundant logins.
+## 4. Database Schema & Data Models
 
-### 4.2 State Management
-- **Zustand** is chosen over React Context for global UI and feature state due to its minimal boilerplate and performance optimizations (preventing unnecessary re-renders).
-- State is decoupled into focused stores (e.g., `layoutStore` for sidebar/theme toggles, and module-specific stores for editor and keyword features).
+### 4.1 `User` Model ([`src/models/user.ts`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/models/user.ts))
+Represents registered users in the platform.
+- `name` (*String*, required): User's full name.
+- `email` (*String*, required, unique): User's email address.
+- `password` (*String*, required): Bcrypt hashed password.
+- `role` (*String*, enum: `['user', 'admin', 'manager', 'super user']`, default: `'user'`): Authorization level.
+- `isActive` (*Boolean*, default: `true`): Account activation flag.
+- `cart` (*ObjectId*, ref: `'Cart'`): Associated cart object.
+- `orders` (*Array of ObjectIds*, ref: `'Order'`): Array of user order references.
+- `timestamps`: Automatic `createdAt` and `updatedAt`.
 
-### 4.3 UI & Layouts
-The layout system has been heavily refactored to separate the "Marketing/CMS" context from the "App/Dashboard" context:
-- `src/components/layout/cms/`: Contains standard navigation used on public or auth pages.
-- `src/components/layout/dashboard/`: Contains the responsive `Sidebar` and `Header` designed specifically for the authenticated workspace.
+### 4.2 `Document` Model ([`src/models/document.ts`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/models/document.ts))
+Represents content articles and drafts created or generated in Butterscribe.
+- `title` (*String*, required): Document title.
+- `description` (*String*): Short document excerpt or summary.
+- `body` (*String*, default: `''`): HTML content generated by Tiptap editor.
+- `aiGenerationId` (*ObjectId*, ref: `'AiGeneration'`): Reference to associated AI strategy generation.
+- `userId` (*ObjectId*, ref: `'User'`, required): Owner ID of the document.
+- `status` (*String*, enum: `['draft', 'published', 'archived', 'approved', 'changes_requested']`, default: `'draft'`): Lifecycle state.
+- `startDate` (*Date*): Scheduled publication / event start date.
+- `endDate` (*Date*): Scheduled publication / event end date.
+- `timestamps`: Automatic `createdAt` and `updatedAt`.
 
-### 4.4 Authentication Flow
-- Handled via `NextAuth.js` with a Custom Credentials provider.
-- `bcryptjs` is used to hash passwords before storing them in MongoDB.
-- During sign-in or sign-up, `handleAuthFormSubmits.ts` processes the logic and enforces a strict client-side redirect directly to `/dashboard` upon success.
+### 4.3 `AiGeneration` Model ([`src/models/aiGeneration.ts`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/models/aiGeneration.ts))
+Stores raw AI prompt strategies generated via Google Gemini.
+- `title` (*String*, required): Truncated title derived from prompt.
+- `prompt` (*String*, required): Original user prompt sent to AI.
+- `response` (*String*, required): Full Markdown-formatted output generated by Gemini API.
+- `userId` (*ObjectId*, ref: `'User'`, required): User who requested the generation.
+- `documentId` (*ObjectId*, ref: `'Document'`): Linked document reference.
+- `timestamps`: Automatic `createdAt` and `updatedAt`.
 
-## 5. Development & Deployment
+### 4.4 `Comment` Model ([`src/models/comment.ts`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/models/comment.ts))
+Enables inline textual feedback and 1-level threaded discussion.
+- `documentId` (*ObjectId*, ref: `'Document'`, required): Associated document.
+- `userId` (*ObjectId*, ref: `'User'`, required): Comment author ID.
+- `userName` (*String*, required): Author display name.
+- `userAvatar` (*String*): Author avatar image URL.
+- `text` (*String*, required): Feedback message text.
+- `selection` (*String*): Highlighted text snippet from the document.
+- `parentId` (*ObjectId*, ref: `'Comment'`): Parent comment ID for 1-level nested replies.
+- `timestamps`: Automatic `createdAt` and `updatedAt`.
 
-- **Package Manager**: npm
-- **Linting & Formatting**: ESLint + Prettier configurations natively integrated with Next.js.
-- **Styling**: Tailwind CSS v4 running via PostCSS integration, ensuring rapid UI prototyping and strict design system adherence via customized themes (`globals.css`).
+---
 
-## 6. Content Creation Module Deep Dive
+## 5. Complete Feature Breakdown & Specifications
 
-The content creation interface (`/create-content`) is the core workspace of the Butterscribe SaaS, designed to provide a distraction-free, highly interactive writing environment with AI integration, secure workflows, and team collaboration features.
+### 5.1 AI-Powered Strategy Generation
+- **Prompt Hero Interface**: Located prominently on the main dashboard ([`src/modules/dashboard/components/HeroPrompt.tsx`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/modules/dashboard/components/HeroPrompt.tsx)).
+- **Structured System Prompting**: Sends structured requests to Google Gemini 3 Flash Preview (`gemini-3-flash-preview`) to output:
+  1. **Content Outline**: Sequential main headings.
+  2. **Keywords**: Categorized into Long Tail (5+), Short Tail (5+), and Question Keywords (5+).
+  3. **Follow-up Questions**: Ideas for related content pieces.
+- **Automated Document Creation**: Automatically creates a new blank document draft linked to the generated AI strategy record in MongoDB, redirecting the user straight to the editor.
 
-### 6.1 Modular Implementation Architecture
-The interface has been refactored into a modular, component-driven architecture to ensure maintainability. Sub-components are stored in a private route group folder to decouple them from the application's URL structure:
-- **Location**: `src/app/create-content/(components)/`
-- **Key Components**:
-  - `DocumentOutline.tsx`: A live-synced sidebar that extracts H1-H6 headings and enables click-to-scroll navigation.
-  - `Toolbar.tsx`: A feature-rich, sticky formatting bar containing typography, alignment, and color controls.
-  - `ReviewSidebar.tsx`: Manages the dual-mode right sidebar (Collaboration Comments vs. SEO Optimization Suite).
-  - `EditorModals.tsx`: Encapsulates custom UI modals for Link and Image management, replacing browser default prompts.
+### 5.2 WYSIWYG Rich Text Editor
+- **Tiptap Engine Integration**: Custom configured editor supporting rich text controls:
+  - Formatting: Bold, Italic, Underline, Strikethrough, Custom Text Colors, Color Highlighting, Headings H1-H6, Alignment (Left, Center, Right).
+  - Structure: Bullet Lists, Numbered Lists, Blockquotes, Inline Code.
+  - Media & Links: Link modal for insertion and removal, Image modal supporting URL insertion or local file browser upload via Base64 encoding.
+- **Paste Authenticity Enforcement**: Intercepts paste events and shows feedback notifying users that copy-paste is disabled to guarantee content originality (configurable via `NEXT_PUBLIC_ALLOW_PASTE`).
+- **Autosave Engine**: Periodically checks for content changes every 30 seconds (configurable via `NEXT_PUBLIC_AUTOSAVE_INTERVAL`) and triggers background persistence without blocking user workflow.
+- **AI Ghostwriter Strategy Drawer**: Slide-out / modal interface ([`src/app/create-content/(components)/EditorModals.tsx`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/app/create-content/(components)/EditorModals.tsx)) rendering the linked Gemini AI keyword research and outline alongside the live text editor.
 
-### 6.2 Advanced Editor Features (Tiptap Integration)
-The editor is powered by a fully integrated **Tiptap** engine, synchronized via a localized Zustand `editorStore`. Key features include:
-- **Rich Formatting**: Support for Bold, Italic, Underline, Strikethrough, Blockquotes, Inline Code, and multi-level headings (H1-H6).
-- **Color & Highlights System**: 
-  - 3 curated text colors (Blue, Purple, Emerald) and 3 highlight colors (Yellow, Blue, Emerald).
-  - Implemented using a "Hover-to-Reveal" popover system for a clean, professional UI.
-  - Dedicated "Eraser" controls for resetting styles to system defaults.
-- **Media Support**: 
-  - **Local Uploads**: Integrated `FileReader` API for embedding local images as Base64 strings.
-  - **External Media**: Support for external image URLs via custom input modals.
-- **Document Navigation**: Headings are extracted in real-time on every update, ensuring the `DocumentOutline` always reflects the current document structure.
+### 5.3 Live Preview & Collaborative Review
+- **Document Rendering**: Clean reader-focused layout displaying the full article formatted with typography styling ([`src/app/live-preview/[id]/page.tsx`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/app/live-preview/%5Bid%5D/page.tsx)).
+- **Inline Text Selection & Floating Commenting**: Users can highlight text anywhere in the document body to trigger a floating comment action.
+- **Threaded Comments Sidebar**: Renders inline comments anchored to specific text selections with support for 1-level deep reply threads.
+- **Real-Time Content Analytics**: Dynamically parses the document body HTML to compute:
+  - Word count & estimated reading time.
+  - Heading distribution counts (H1–H6).
+  - Internal links count, image count, blockquote count, bold text count, paragraph count.
 
-### 6.3 Security & Anti-AI Protections
-To maintain content authenticity, the editor implements a strict **Anti-Paste Security Layer**:
-- **Paste Interception**: A global `handlePaste` prop in the editor configuration blocks all clipboard actions.
-- **User Feedback**: Intercepted paste attempts trigger a high-visibility `sonner` toast notification, informing the user that manual typing is required to ensure originality.
+### 5.4 Document Workflow & Status Lifecycle
+- **Status Enum**: `draft` ➔ `changes_requested` ➔ `approved` ➔ `published` / `archived`.
+- **Approved State Read-Only Locking**: Once marked as `approved`, the document becomes read-only in the editor with a notice header.
+- **Interactive Approval Controls**: Reviewers can click **Approve** or **Request Changes** directly in the Live Preview header or Approvals list.
 
-### 6.4 Next Steps & Roadmap
-- **AI Ghostwriter Integration**: Finalize the connection between the `editorStore` and the AI backend service.
-- **Persistence Layer**: Migrate from local store persistence to a MongoDB-backed saving system with autosave indicators.
-- **Collaborative Comments**: Transform the static review mode into a live, multi-user commenting system.
+### 5.5 Content Calendar & Visual Scheduling
+- **FullCalendar Integration**: Interactive month/week calendar interface ([`src/app/content-calendar/page.tsx`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/app/content-calendar/page.tsx)).
+- **Drag-and-Drop Scheduling**: Sidebar displaying unscheduled drafts. Users drag any draft onto a calendar date cell to schedule it.
+- **End Date Popover & Optimistic UI Updates**: Dropping an item opens an End Date selection popover, immediately updating local state before persisting to the database.
 
+### 5.6 Content Library Management
+- **Search & Pagination**: Server-side filterable data table ([`src/app/content-library/page.tsx`](file:///Users/arunbiradar/Developer/Work/butterscribe/src/app/content-library/page.tsx)) supporting full-text title search regex and status filtering.
+- **URL Parameter State Synchronization**: Search terms, active status filter, page index, and items per page limit are mapped to URL query parameters (`search`, `status`, `page`, `limit`).
+
+### 5.7 Authentication & User Security
+- **NextAuth Credentials Strategy**: Custom authentication flow with password hashing using `bcryptjs`.
+- **User Account Actions**: Pre-built client handlers for Sign In, Sign Up with auto-login, Forgot Password, and Reset Password via email tokens.
+
+---
+
+## 6. Directory Map & Code Structure
+
+```
+butterscribe/
+├── src/
+│   ├── app/                                 # Next.js App Router Routes & API
+│   │   ├── api/                             # Backend API Endpoints
+│   │   │   ├── ai-generations/by-document/  # Fetch AI strategy by document ID
+│   │   │   ├── auth/[...nextauth]/          # NextAuth authentication config & handler
+│   │   │   ├── comments/                    # Inline comments & replies CRUD
+│   │   │   ├── documents/                   # Document CRUD, search & pagination
+│   │   │   └── generate/                    # Gemini AI generation endpoint
+│   │   ├── approvals/                       # Approvals dashboard page
+│   │   ├── auth/                            # Authentication pages (signin, signup, etc.)
+│   │   ├── content-calendar/                # Calendar view page
+│   │   ├── content-library/                 # Document library table page
+│   │   ├── create-content/                  # Rich text editor workspace page & components
+│   │   ├── dashboard/                       # Main application dashboard
+│   │   ├── live-preview/                    # Document live preview page
+│   │   ├── globals.css                      # Core design system tokens & styles
+│   │   ├── layout.tsx                       # Root layout wrapper
+│   │   └── page.tsx                         # Landing / redirect page
+│   ├── components/                          # UI & Layout components
+│   │   ├── layout/                          # Header, Footer, Sidebar layouts
+│   │   ├── shared/                          # Reusable DocumentTable, form fields, logo
+│   │   └── ui/                              # Radix UI & Shadcn primitive components
+│   ├── context/                             # AuthProvider wrapper
+│   ├── lib/                                 # Shared utilities & database core
+│   │   ├── actions/                         # Auth form submit handlers
+│   │   ├── db/                              # MongoDB connection handler with caching
+│   │   └── utils.ts                         # Class merging (clsx + tailwind-merge)
+│   ├── models/                              # Mongoose Schemas (User, Document, AiGeneration, Comment)
+│   ├── modules/                             # Feature-driven module logic
+│   │   ├── calendar/                        # Calendar sidebar, draft modal, end date popover
+│   │   ├── dashboard/                       # HeroPrompt, StatsGrid, ContentTable
+│   │   ├── editor/                          # Tiptap editor wrapper
+│   │   └── keywords/                        # Keyword lists & store
+│   ├── schemas/                             # Zod validation schemas
+│   ├── store/                               # Zustand stores (layoutStore, editorStore, keywordStore)
+│   └── utils/                               # Email sending helpers (Nodemailer)
+├── types/                                   # TypeScript global declarations & interfaces
+├── scripts/                                 # Environment deployment shell scripts
+├── package.json                             # Dependencies & scripts configuration
+└── DESIGN_DOCUMENT.md                       # Comprehensive design specification
+```
+
+---
+
+## 7. API Reference Summary
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| `POST` | `/api/generate` | Generates AI strategy via Gemini 3 Flash and initializes draft document | Yes |
+| `GET` | `/api/documents` | List user documents with search regex, status filter, and pagination | Yes |
+| `POST` | `/api/documents` | Create or update document metadata, HTML body, status, or schedule dates | Yes |
+| `GET` | `/api/documents/:id` | Fetch single document by ID with linked AI generation object | Yes |
+| `PATCH` | `/api/documents/:id` | Update document status (`approved`, `changes_requested`, etc.) | Yes |
+| `GET` | `/api/comments` | Fetch all inline comments for a given document | No / Public |
+| `POST` | `/api/comments` | Create inline comment or reply to an existing comment | Yes |
+| `GET` | `/api/ai-generations/by-document/:id` | Retrieve linked AI generation by document ID | Yes |
+| `POST` | `/api/auth/signup` | Register a new user account | No |
+| `POST` | `/api/auth/forgot-password` | Send password reset email token | No |
+| `POST` | `/api/auth/reset-password` | Update user password using token | No |
