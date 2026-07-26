@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { connectToDatabase } from "@/lib/db";
 import Document from "@/models/document";
+import User from "@/models/user";
 
 export async function POST(req: NextRequest) {
   try {

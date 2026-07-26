@@ -33,6 +33,8 @@ import {
   X
 } from "lucide-react";
 
+import { highlightCommentedSelections } from "@/utils/highlightComments";
+
 export default function LivePreviewPage() {
   const { data: session } = useSession();
   const params = useParams();
@@ -91,7 +93,6 @@ export default function LivePreviewPage() {
           if (res.ok) {
             const data = await res.json();
             setDoc(data);
-            editor.commands.setContent(data.body);
             
             // Extract headings
             const extractedHeadings: any[] = [];
@@ -116,6 +117,14 @@ export default function LivePreviewPage() {
       fetchComments();
     }
   }, [id, editor]);
+
+  // Update editor content with highlighted comment selections
+  useEffect(() => {
+    if (editor && doc?.body) {
+      const highlightedContent = highlightCommentedSelections(doc.body, comments);
+      editor.commands.setContent(highlightedContent);
+    }
+  }, [editor, doc?.body, comments]);
 
   const handleTextSelection = () => {
     const sel = window.getSelection();

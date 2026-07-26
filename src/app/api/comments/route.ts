@@ -72,3 +72,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    // @ts-ignore
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const commentId = searchParams.get('id');
+
+    if (!commentId) {
+      return NextResponse.json({ error: "Comment ID is required" }, { status: 400 });
+    }
+
+    await connectToDatabase();
+
+    // Delete target comment and any of its child replies
+    await Comment.deleteMany({ $or: [{ _id: commentId }, { parentId: commentId }] });
+
+    return NextResponse.json({ success: true, message: "Comment resolved" });
+  } catch (error) {
+    console.error("Error deleting comment:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
