@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "next-auth/react";
 
-const UserLoggedInDropdown = ({ user }) => {
+const UserLoggedInDropdown = ({ user }: { user: any }) => {
     const userName = user?.name;
     const nameParts = userName?.split(" ");
     const initials = nameParts

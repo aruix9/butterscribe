@@ -107,7 +107,7 @@ export async function exportToDocx(title: string, htmlContent: string) {
                     width: 500,
                     height: 280,
                   },
-                })
+                } as any)
               );
             }
           }
@@ -174,7 +174,7 @@ export async function exportToDocx(title: string, htmlContent: string) {
                       width: 520,
                       height: 300,
                     },
-                  }),
+                  } as any),
                 ],
                 spacing: { before: 120, after: 120 },
               })

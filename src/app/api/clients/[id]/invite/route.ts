@@ -46,16 +46,17 @@ export async function POST(
         updatePayload.role = role;
       }
       const updatedUser = await User.findByIdAndUpdate(existingUser._id, updatePayload, { new: true });
+      const targetUser = updatedUser || existingUser;
       await Client.findByIdAndUpdate(client._id, { $addToSet: { users: existingUser._id } });
 
       return NextResponse.json({
         status: "added",
-        message: `User ${updatedUser.name} (${normalizedEmail}) has been attached to ${client.company} as ${updatedUser.role}.`,
+        message: `User ${targetUser.name} (${normalizedEmail}) has been attached to ${client.company} as ${targetUser.role}.`,
         user: {
-          _id: updatedUser._id,
-          name: updatedUser.name,
-          email: updatedUser.email,
-          role: updatedUser.role,
+          _id: targetUser._id,
+          name: targetUser.name,
+          email: targetUser.email,
+          role: targetUser.role,
         }
       });
     }

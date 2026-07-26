@@ -37,6 +37,7 @@ import {
 import { highlightCommentedSelections } from "@/utils/highlightComments";
 import { exportToDocx } from "@/utils/exportDocx";
 import Logo from "@/components/shared/logo";
+import { toast } from "sonner";
 
 export default function LivePreviewPage() {
   const { data: session } = useSession();
@@ -284,7 +285,8 @@ export default function LivePreviewPage() {
     );
   }
 
-  const isManagerOrSuperUser = session?.user?.role === 'manager' || session?.user?.role === 'super user';
+  const userRole = (session?.user as any)?.role;
+  const isManagerOrSuperUser = userRole === 'manager' || userRole === 'super user';
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors">
