@@ -44,5 +44,7 @@ export const config = {
     "/create-content/:path*",
     "/dashboard/:path*",
     "/live-preview/:path*",
+    "/users/:path*",
+    "/clients/:path*",
   ],
 };

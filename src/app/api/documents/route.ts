@@ -21,6 +21,10 @@ export async function POST(req: NextRequest) {
 
     await connectToDatabase();
 
+    // Fetch user to retrieve their clientId
+    // @ts-ignore
+    const currentUser = await User.findById(session.user.id).select('clientId');
+
     let document;
     if (id) {
       const updateData: any = {};
@@ -48,6 +52,7 @@ export async function POST(req: NextRequest) {
         body: body || '',
         // @ts-ignore
         userId: session.user.id,
+        clientId: currentUser?.clientId || undefined,
         status: status || 'draft',
         startDate,
         endDate

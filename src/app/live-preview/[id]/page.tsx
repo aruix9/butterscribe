@@ -275,24 +275,27 @@ export default function LivePreviewPage() {
           )}
         </div>
         
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={handleRequestChangesClick}
-            disabled={isSavingStatus || doc?.status === 'changes_requested'}
-            className="px-4 py-2 border border-red-500 text-red-600 dark:text-red-400 font-bold text-sm rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 disabled:opacity-50"
-          >
-            <Edit className="w-4 h-4" />
-            <span className="hidden sm:inline">Request Changes</span>
-          </button>
-          <button 
-            onClick={handleApprove}
-            disabled={isSavingStatus || doc?.status === 'approved'}
-            className="px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-          >
-            <CheckCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Approve</span>
-          </button>
-        </div>
+        {/* Only Managers and Super Users can Approve or Request Changes */}
+        {((session?.user as any)?.role === 'manager' || (session?.user as any)?.role === 'super user') && (
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleRequestChangesClick}
+              disabled={isSavingStatus || doc?.status === 'changes_requested'}
+              className="px-4 py-2 border border-red-500 text-red-600 dark:text-red-400 font-bold text-sm rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <Edit className="w-4 h-4" />
+              <span className="hidden sm:inline">Request Changes</span>
+            </button>
+            <button 
+              onClick={handleApprove}
+              disabled={isSavingStatus || doc?.status === 'approved'}
+              className="px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Approve</span>
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}

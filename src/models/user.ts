@@ -6,8 +6,10 @@ export interface IUserInput {
   password: string
   role?: 'user' | 'admin' | 'manager' | 'super user'
   isActive?: boolean
-  cart: Types.ObjectId
-  orders: Types.ObjectId
+  isVerified?: boolean
+  cart?: Types.ObjectId
+  orders?: Types.ObjectId
+  clientId?: Types.ObjectId
 }
 
 export interface IUser extends Document, IUserInput {
@@ -22,11 +24,17 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     role: { type: String, enum: ['user', 'admin', 'manager', 'super user'], default: 'user' },
     isActive: { type: Boolean, default: true },
+    isVerified: { type: Boolean, default: true },
     cart: { type: Schema.Types.ObjectId, ref: 'Cart' },
     orders: [{ type: Schema.Types.ObjectId, ref: 'Order' }],
+    clientId: { type: Schema.Types.ObjectId, ref: 'Client' },
   },
   { timestamps: true }
 )
+
+if (models.User && !models.User.schema.path('clientId')) {
+  delete (models as any).User;
+}
 
 const User = (models.User as Model<IUser>) || model<IUser>('User', UserSchema)
 

@@ -10,19 +10,23 @@ import PasswordField from '@/components/shared/form/passwordField'
 import { Button } from '@/components/ui/button'
 import { signUpSchema } from '@/schemas/zodAuthFormSchemas'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { handleSignUpSubmit } from '@/lib/actions/handleAuthFormSubmits'
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { ArrowRight, TrendingUp } from 'lucide-react'
+import { ArrowRight, TrendingUp, Sparkles, Building2 } from 'lucide-react'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 
-const SignUp = () => {
+const SignUpFormContent = () => {
   const [showPassword, setShowPassword] = useState(false)
+  const [invitedCompany, setInvitedCompany] = useState<string | null>(null)
+  const [invitationError, setInvitationError] = useState<string | null>(null)
 
   const router: AppRouterInstance = useRouter()
+  const searchParams = useSearchParams()
+  const inviteToken = searchParams.get('inviteToken') || undefined
 
   const form = useForm<z.infer<typeof signUpSchema>>({
     resolver: zodResolver(signUpSchema),
@@ -33,8 +37,30 @@ const SignUp = () => {
     },
   })
 
+  // Validate invitation token on load
+  useEffect(() => {
+    if (inviteToken) {
+      fetch(`/api/invitations/${inviteToken}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.isValid) {
+            setInvitedCompany(data.company)
+            if (data.email) {
+              form.setValue('email', data.email)
+            }
+          } else {
+            setInvitationError(data.message || 'Invalid or expired invitation token')
+          }
+        })
+        .catch((err) => {
+          console.error(err)
+          setInvitationError('Failed to validate invitation token')
+        })
+    }
+  }, [inviteToken, form])
+
   const onSubmit = (values: z.infer<typeof signUpSchema>) => {
-    handleSignUpSubmit(values)
+    handleSignUpSubmit(values, inviteToken)
   }
 
   return (
@@ -101,8 +127,26 @@ const SignUp = () => {
         <div className="order-1 lg:order-2">
           <div className="p-8 md:p-12 rounded-xl shadow-xl shadow-primary/5 border border-primary/10">
             <div className="mb-8">
+              {invitedCompany ? (
+                <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl text-purple-900">
+                  <div className="flex items-center gap-2 font-bold text-sm text-purple-700 mb-1">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                    <span>Client Team Invitation</span>
+                  </div>
+                  <p className="text-xs text-purple-800">
+                    You have been invited to join <strong className="font-bold text-purple-950">{invitedCompany}</strong>! Create your account below to automatically access their team workspace.
+                  </p>
+                </div>
+              ) : invitationError ? (
+                <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold">
+                  ⚠️ {invitationError}
+                </div>
+              ) : null}
+
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Create your account</h2>
-              <p className="text-slate-500 text-sm">Get started with your 14-day free trial today.</p>
+              <p className="text-slate-500 text-sm">
+                {invitedCompany ? `Register your account to access ${invitedCompany}` : 'Get started with your 14-day free trial today.'}
+              </p>
             </div>
 
             <Form {...form}>
@@ -135,7 +179,7 @@ const SignUp = () => {
                   size='lg'
                   className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-all flex items-center justify-center gap-2 group text-base"
                 >
-                  <span>Get Started Now</span>
+                  <span>{invitedCompany ? 'Accept & Register Account' : 'Get Started Now'}</span>
                   <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </Button>
               </form>
@@ -151,6 +195,18 @@ const SignUp = () => {
         </div>
       </div>
     </section>
+  )
+}
+
+const SignUp = () => {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[400px] items-center justify-center">
+        <p className="text-sm font-semibold text-slate-500">Loading sign up form...</p>
+      </div>
+    }>
+      <SignUpFormContent />
+    </Suspense>
   )
 }
 

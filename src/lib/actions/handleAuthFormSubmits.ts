@@ -40,9 +40,13 @@ export const handleSignInSumit = async (
 
 export const handleSignUpSubmit = async (
   values: z.infer<typeof signUpSchema>,
+  inviteToken?: string,
 ) => {
   try {
-    const response = await axios.post("/api/auth/signup", values);
+    const response = await axios.post("/api/auth/signup", {
+      ...values,
+      inviteToken,
+    });
 
     toast.success("Sign Up Success", {
       description: response.data.message,
