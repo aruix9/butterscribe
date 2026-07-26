@@ -8,6 +8,7 @@ export interface IComment extends Document {
   text: string;
   selection?: string; // The selected text context
   parentId?: mongoose.Types.ObjectId; // For one level of nesting
+  isResolved?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,9 +22,14 @@ const CommentSchema = new Schema<IComment>(
     text: { type: String, required: true },
     selection: { type: String },
     parentId: { type: Schema.Types.ObjectId, ref: 'Comment' },
+    isResolved: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
+
+if (models.Comment && !models.Comment.schema.path('isResolved')) {
+  delete (models as any).Comment;
+}
 
 const Comment = (models.Comment as Model<IComment>) || mongoose.model<IComment>('Comment', CommentSchema);
 

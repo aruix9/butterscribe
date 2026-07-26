@@ -220,13 +220,17 @@ export default function CreateContentPage() {
 
   useEffect(() => {
     if (editor && content) {
-      if (isReviewMode && comments.length > 0) {
+      const openComments = comments.filter(c => !c.isResolved);
+      if (isReviewMode && openComments.length > 0) {
         const highlighted = highlightCommentedSelections(content, comments);
         if (editor.getHTML() !== highlighted) {
           editor.commands.setContent(highlighted);
         }
-      } else if (editor.getHTML() !== content) {
-        editor.commands.setContent(content);
+      } else {
+        const cleanContent = content.replace(/<mark[^>]*>(.*?)<\/mark>/gi, '$1');
+        if (editor.getHTML() !== cleanContent) {
+          editor.commands.setContent(cleanContent);
+        }
       }
     }
   }, [content, editor, isReviewMode, comments]);
@@ -250,6 +254,8 @@ export default function CreateContentPage() {
           setImageModal={setImageModal}
           handleSave={() => handleSave(true)}
           isSaving={isSaving}
+          status={status}
+          title={title}
         />
         <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-80px)] pb-16">
           {/* Document Outline Sidebar */}
@@ -257,7 +263,7 @@ export default function CreateContentPage() {
 
           {/* Editor Area */}
           <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-zinc-950 relative">
-            <div className="flex-1 overflow-y-auto p-8 lg:p-16 max-w-4xl mx-auto w-full relative">
+            <div className="flex-1 overflow-y-auto p-8 mx-auto w-full relative">
               {status === 'approved' && (
                 <div className="mb-8 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl flex items-center gap-3">
                   <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -268,17 +274,16 @@ export default function CreateContentPage() {
                 </div>
               )}
               {status === 'changes_requested' && (
-                <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl flex items-center gap-3">
+                <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl flex items-center gap-3">
                   <Edit className="w-5 h-5 text-red-600 dark:text-red-400" />
                   <div>
-                    <p className="text-sm font-bold text-red-900 dark:text-red-100 uppercase tracking-tight">Changes Requested</p>
-                    <p className="text-xs text-red-600 dark:text-red-400">Feedback has been provided. Please review the live preview and update the content.</p>
+                    <p className="text-sm text-red-900 dark:text-red-100 tracking-tight"><strong className="uppercase">Changes Requested:</strong> Feedback has been provided. Please review the live preview and update the content.</p>
                   </div>
                 </div>
               )}
               <h1
                 className={cn(
-                  "text-5xl font-bold mb-8 outline-none",
+                  "text-3xl font-bold mb-8 outline-none",
                   status === 'approved' ? "text-zinc-400 dark:text-zinc-600" : "text-zinc-900 dark:text-white"
                 )}
                 contentEditable={status !== 'approved'}

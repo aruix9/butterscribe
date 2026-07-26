@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, MessageSquare, Reply, Send, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface ReviewSidebarProps {
   isReviewMode: boolean;
@@ -39,9 +40,13 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
   const handleResolveComment = async (commentId: string) => {
     setResolvingId(commentId);
     try {
-      const res = await fetch(`/api/comments?id=${commentId}`, { method: "DELETE" });
+      const res = await fetch(`/api/comments`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId, isResolved: true })
+      });
       if (!res.ok) throw new Error("Failed to resolve comment");
-      toast.success("Comment resolved");
+      toast.success("Comment marked as resolved!");
       if (onRefreshComments) onRefreshComments();
     } catch (err: any) {
       console.error(err);
@@ -90,8 +95,13 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
               <h3 className="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Review Comments</h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">Collaborate with your team</p>
             </div>
-            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider">
-              {openCount} {openCount === 1 ? 'Open' : 'Open'}
+            <span className={cn(
+              "text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider",
+              openCount > 0
+                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+            )}>
+              {openCount > 0 ? `${openCount} Open` : 'All Resolved'}
             </span>
           </div>
 
@@ -100,14 +110,21 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
               <div className="p-8 text-center text-zinc-400 text-xs flex flex-col items-center justify-center gap-2">
                 <MessageSquare className="w-8 h-8 text-zinc-300 dark:text-zinc-700" />
                 <p className="font-semibold text-zinc-600 dark:text-zinc-400">No review comments yet.</p>
-                <p className="text-[11px] text-zinc-400">Open the Live Preview page to select text and leave feedback.</p>
               </div>
             ) : (
               topLevelComments.map((comment) => {
                 const replies = comments.filter(c => c.parentId === comment._id);
 
                 return (
-                  <div key={comment._id} className="bg-white dark:bg-zinc-900 rounded-xl border border-blue-200 dark:border-blue-900/50 p-4 shadow-xs relative ring-1 ring-blue-100 dark:ring-blue-900/20">
+                  <div
+                    key={comment._id}
+                    className={cn(
+                      "rounded-xl border p-4 shadow-xs relative transition-all",
+                      comment.isResolved
+                        ? "bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/40 opacity-80"
+                        : "bg-white dark:bg-zinc-900 border-blue-200 dark:border-blue-900/50 ring-1 ring-blue-100 dark:ring-blue-900/20"
+                    )}
+                  >
                     {/* User Header */}
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -120,7 +137,14 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
                         </div>
                         <span className="text-xs font-bold text-zinc-900 dark:text-white">{comment.userName}</span>
                       </div>
-                      <span className="text-[10px] text-zinc-400 font-medium">{getTimeAgo(comment.createdAt)}</span>
+
+                      {comment.isResolved ? (
+                        <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Resolved
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-zinc-400 font-medium">{getTimeAgo(comment.createdAt)}</span>
+                      )}
                     </div>
 
                     {/* Selected Text Highlight Quote */}
@@ -184,24 +208,33 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
 
                     {/* Card Actions */}
                     <div className="flex items-center gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                      <button
-                        onClick={() => { setReplyingToId(comment._id); setReplyText(""); }}
-                        className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider flex items-center gap-1"
-                      >
-                        <Reply className="w-3 h-3" /> Reply
-                      </button>
-                      <button
-                        disabled={resolvingId === comment._id}
-                        onClick={() => handleResolveComment(comment._id)}
-                        className="text-[10px] font-bold text-zinc-400 hover:text-emerald-600 ml-auto uppercase tracking-wider flex items-center gap-1 transition-colors"
-                      >
-                        {resolvingId === comment._id ? (
-                          <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
-                        ) : (
-                          <CheckCircle2 className="w-3 h-3" />
-                        )}
-                        Resolve
-                      </button>
+                      {!comment.isResolved && (
+                        <>
+                          <button
+                            onClick={() => { setReplyingToId(comment._id); setReplyText(""); }}
+                            className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider flex items-center gap-1"
+                          >
+                            <Reply className="w-3 h-3" /> Reply
+                          </button>
+                          <button
+                            disabled={resolvingId === comment._id}
+                            onClick={() => handleResolveComment(comment._id)}
+                            className="text-[10px] font-bold text-zinc-400 hover:text-emerald-600 ml-auto uppercase tracking-wider flex items-center gap-1 transition-colors"
+                          >
+                            {resolvingId === comment._id ? (
+                              <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                            ) : (
+                              <CheckCircle2 className="w-3 h-3" />
+                            )}
+                            Resolve
+                          </button>
+                        </>
+                      )}
+                      {comment.isResolved && (
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Resolved
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

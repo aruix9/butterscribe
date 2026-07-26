@@ -221,7 +221,7 @@ export default function ApprovalsPage() {
         isSidebarCollapsed ? "ml-20" : "ml-64"
       )}>
         <div className="p-8 max-w-[1440px] mx-auto w-full flex-1 font-sans">
-          
+
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div>
@@ -244,7 +244,7 @@ export default function ApprovalsPage() {
           {/* Action & Filter Toolbar */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              
+
               {/* Search Bar */}
               <div className="relative flex-1 md:w-72">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
@@ -256,7 +256,7 @@ export default function ApprovalsPage() {
                   className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary text-sm shadow-xs transition-all"
                 />
                 {search && (
-                  <button 
+                  <button
                     onClick={() => { setSearch(""); setPage(1); }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xs font-bold"
                   >
@@ -362,7 +362,7 @@ export default function ApprovalsPage() {
 
                       return (
                         <tr key={doc._id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30 transition-colors group">
-                          
+
                           {/* Content Document Title & Description */}
                           <td className="p-4 pl-6">
                             <div className="flex items-start gap-3">
@@ -424,7 +424,7 @@ export default function ApprovalsPage() {
                           {/* Actions Column */}
                           <td className="p-4 pr-6 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              
+
                               {/* Live Preview Button */}
                               <Link
                                 href={`/live-preview/${doc._id}`}
@@ -434,20 +434,6 @@ export default function ApprovalsPage() {
                               >
                                 <Eye className="w-4 h-4" />
                               </Link>
-
-                              {/* Request Changes Button */}
-                              <button
-                                disabled={actionLoadingId === doc._id}
-                                onClick={() => handleRequestChanges(doc._id, doc.title)}
-                                className="p-2 text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all border border-zinc-200 dark:border-zinc-800"
-                                title="Request Revisions"
-                              >
-                                {actionLoadingId === doc._id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
-                                ) : (
-                                  <MessageSquare className="w-4 h-4" />
-                                )}
-                              </button>
 
                               {/* Approve Button */}
                               <button

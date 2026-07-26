@@ -73,6 +73,35 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    // @ts-ignore
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { commentId, isResolved = true } = await req.json();
+
+    if (!commentId) {
+      return NextResponse.json({ error: "Comment ID is required" }, { status: 400 });
+    }
+
+    await connectToDatabase();
+
+    // Mark target comment and its replies as resolved
+    await Comment.updateMany(
+      { $or: [{ _id: commentId }, { parentId: commentId }] },
+      { $set: { isResolved } }
+    );
+
+    return NextResponse.json({ success: true, message: "Comment status updated" });
+  } catch (error) {
+    console.error("Error updating comment status:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

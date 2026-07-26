@@ -1,29 +1,29 @@
 /**
  * Highlights commented phrases/sentences in HTML content body by wrapping matching selections
  * in a highlighted <mark> element with tooltips and custom styling.
+ * Automatically removes highlights for resolved comments.
  */
 export function highlightCommentedSelections(htmlContent: string, comments: any[]): string {
-  if (!htmlContent || !comments || comments.length === 0) return htmlContent;
+  if (!htmlContent) return htmlContent;
 
-  let processedHtml = htmlContent;
+  // 1. Thoroughly strip any existing <mark> tags so resolved comment highlights are completely removed
+  let processedHtml = htmlContent.replace(/<mark[^>]*>(.*?)<\/mark>/gi, '$1');
 
-  // Filter valid selections from top-level comments
-  const selectionsWithComments = comments
-    .filter(c => c.selection && typeof c.selection === 'string' && c.selection.trim().length > 0)
+  if (!comments || comments.length === 0) return processedHtml;
+
+  // 2. Filter valid selections from ONLY UNRESOLVED (open) top-level comments
+  const openSelections = comments
+    .filter(c => !c.isResolved && c.selection && typeof c.selection === 'string' && c.selection.trim().length > 0)
     .map(c => ({
       selection: c.selection.trim(),
       commentText: c.text,
       userName: c.userName || 'Comment'
     }));
 
-  if (selectionsWithComments.length === 0) return htmlContent;
+  if (openSelections.length === 0) return processedHtml;
 
-  selectionsWithComments.forEach(({ selection, commentText, userName }) => {
-    // Avoid double-wrapping already highlighted elements
+  openSelections.forEach(({ selection, commentText, userName }) => {
     const escapedCommentText = commentText.replace(/"/g, '&quot;');
-    if (processedHtml.includes(`title="${escapedCommentText}"`)) return;
-
-    // Escape regex special characters in selection phrase
     const escapedSelection = selection.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     try {

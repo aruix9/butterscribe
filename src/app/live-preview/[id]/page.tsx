@@ -4,16 +4,17 @@ import { useLayoutStore } from "@/store/layoutStore";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import NextImage from "next/image";
-import { 
-  ArrowLeft, 
-  Edit, 
-  CheckCircle, 
-  ChevronRight, 
-  MessageSquare, 
-  FileText, 
-  Clock, 
+import {
+  ArrowLeft,
+  Edit,
+  CheckCircle,
+  ChevronRight,
+  MessageSquare,
+  FileText,
+  Clock,
   Link2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Download
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
@@ -24,16 +25,18 @@ import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
 import TiptapLink from '@tiptap/extension-link';
 import TiptapImage from '@tiptap/extension-image';
-import {TextStyle} from '@tiptap/extension-text-style';
+import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import { useSession } from "next-auth/react";
-import { 
+import {
   Send,
   Reply,
   X
 } from "lucide-react";
 
 import { highlightCommentedSelections } from "@/utils/highlightComments";
+import { exportToDocx } from "@/utils/exportDocx";
+import Logo from "@/components/shared/logo";
 
 export default function LivePreviewPage() {
   const { data: session } = useSession();
@@ -93,7 +96,7 @@ export default function LivePreviewPage() {
           if (res.ok) {
             const data = await res.json();
             setDoc(data);
-            
+
             // Extract headings
             const extractedHeadings: any[] = [];
             editor.state.doc.descendants((node, pos) => {
@@ -165,11 +168,28 @@ export default function LivePreviewPage() {
     }
   };
 
+  const handleResolveComment = async (commentId: string) => {
+    try {
+      const res = await fetch('/api/comments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId, isResolved: true }),
+      });
+      if (res.ok) {
+        toast.success("Comment resolved!");
+        fetchComments();
+      }
+    } catch (err) {
+      console.error("Failed to resolve comment", err);
+      toast.error("Failed to resolve comment");
+    }
+  };
+
   const getTimeAgo = (date: string) => {
     const now = new Date();
     const then = new Date(date);
     const seconds = Math.floor((now.getTime() - then.getTime()) / 1000);
-    
+
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;
@@ -181,12 +201,12 @@ export default function LivePreviewPage() {
 
   const stats = useMemo(() => {
     if (!doc?.body) return { words: 0, readTime: 0, links: 0, headings: [], images: 0, blockquotes: 0, bold: 0, paragraphs: 0 };
-    
+
     const body = doc.body;
     const text = body.replace(/<[^>]*>/g, ' ');
     const words = text.split(/\s+/).filter(Boolean).length;
     const readTime = Math.ceil(words / 200);
-    
+
     const statsObj = {
       words,
       readTime,
@@ -204,7 +224,7 @@ export default function LivePreviewPage() {
         { label: 'H6 Tags', count: (body.match(/<h6/g) || []).length },
       ].filter(h => h.count > 0)
     };
-    
+
     return statsObj;
   }, [doc]);
 
@@ -243,6 +263,10 @@ export default function LivePreviewPage() {
     }
   };
 
+  const topLevelComments = useMemo(() => comments.filter(c => !c.parentId), [comments]);
+  const hasTopLevelComments = topLevelComments.length > 0;
+  const allCommentsResolved = hasTopLevelComments && topLevelComments.every(c => c.isResolved);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -260,16 +284,17 @@ export default function LivePreviewPage() {
     );
   }
 
+  const isManagerOrSuperUser = session?.user?.role === 'manager' || session?.user?.role === 'super user';
+
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors">
       {/* Header */}
       <header className="flex justify-between items-center w-full px-6 h-16 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-50">
         <div className="flex items-center gap-6">
-          <div className="text-xl font-bold text-zinc-900 dark:text-white tracking-tighter flex items-center gap-2">
-            Butterscribe
-          </div>
+          <Logo />
+
           <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-700"></div>
-          
+
           {doc?.status === 'approved' && (
             <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 px-3 py-1 rounded-full">
               <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -277,64 +302,54 @@ export default function LivePreviewPage() {
             </div>
           )}
           {doc?.status === 'changes_requested' && (
-            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 px-3 py-1 rounded-full">
-              <Edit className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-              <span className="text-xs font-bold text-red-700 dark:text-red-300 uppercase tracking-tight">Changes Requested</span>
-            </div>
+            allCommentsResolved ? (
+              <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 px-3 py-1 rounded-full">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-tight">Changes Resolved</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 px-3 py-1 rounded-full">
+                <Edit className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                <span className="text-xs font-bold text-red-700 dark:text-red-300 uppercase tracking-tight">Changes Requested</span>
+              </div>
+            )
           )}
         </div>
-        
-        {/* Only Managers and Super Users can Approve or Request Changes */}
-        {((session?.user as any)?.role === 'manager' || (session?.user as any)?.role === 'super user') && (
+
+        {isManagerOrSuperUser && (
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={handleRequestChangesClick}
-              disabled={isSavingStatus || doc?.status === 'changes_requested'}
-              className="px-4 py-2 border border-red-500 text-red-600 dark:text-red-400 font-bold text-sm rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+              disabled={isSavingStatus || (doc?.status === 'changes_requested' && !allCommentsResolved)}
+              className="px-4 py-2 border border-red-500 text-red-600 dark:text-red-400 font-bold text-sm rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Edit className="w-4 h-4" />
               <span className="hidden sm:inline">Request Changes</span>
             </button>
-            <button 
-              onClick={handleApprove}
-              disabled={isSavingStatus || doc?.status === 'approved'}
-              className="px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Approve</span>
-            </button>
+            {doc?.status === 'approved' ? (
+              <button
+                onClick={() => exportToDocx(doc?.title || "document", doc?.body || "")}
+                className="px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleApprove}
+                disabled={isSavingStatus}
+                className="px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Approve</span>
+              </button>
+            )}
           </div>
         )}
       </header>
 
       {/* Main Content */}
       <main className="flex-1 w-full max-w-[1440px] mx-auto px-6 py-8 flex gap-8">
-        
-        {/* Left Sidebar: Document Outline */}
-        <aside className="hidden lg:block w-64 shrink-0">
-          <div className="sticky top-24">
-            <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-6">Document Outline</h4>
-            <nav className="flex flex-col gap-3 relative border-l border-zinc-200 dark:border-zinc-800">
-              {headings.length > 0 ? (
-                headings.map((heading) => (
-                  <a 
-                    key={heading.id}
-                    href={`#${heading.id}`} 
-                    className={cn(
-                      "pl-4 py-1 text-sm font-medium transition-colors hover:underline",
-                      heading.level === 1 ? "text-zinc-900 dark:text-white" : "text-zinc-500 dark:text-zinc-400",
-                    )}
-                  >
-                    {heading.text}
-                  </a>
-                ))
-              ) : (
-                <span className="pl-4 text-sm text-zinc-400 italic">No headings found</span>
-              )}
-            </nav>
-          </div>
-        </aside>
-
         {/* Center Content Canvas */}
         <div className="flex-1 max-w-3xl w-full mx-auto relative">
           <article className="prose prose-zinc dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:tracking-tight">
@@ -343,7 +358,7 @@ export default function LivePreviewPage() {
                 {doc.title}
               </h1>
             </div>
-            
+
             <div onMouseUp={handleTextSelection}>
               <EditorContent editor={editor} className="tiptap-preview" />
             </div>
@@ -370,173 +385,199 @@ export default function LivePreviewPage() {
         </div>
 
         {/* Right Sidebar: Insights & Comments */}
-        <aside className="hidden xl:block w-80 shrink-0 space-y-6">
-            {/* Content Stats Section */}
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden group">
-              <div className="w-full flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-800">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Content Stats</h4>
-              </div>
-              
-              <div className="p-5">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
-                      <FileText className="w-3 h-3" /> Words
-                    </span>
-                    <span className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
-                      {stats.words.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" /> Read Time
-                    </span>
-                    <span className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
-                      {stats.readTime}m
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-4"></div>
-                
-                <ul className="space-y-3">
-                  {stats.headings.map((h, i) => (
-                    <li key={i} className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">{h.label}</span>
-                      <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{h.count}</span>
-                    </li>
-                  ))}
-                  
-                  {stats.links > 0 && (
-                    <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
-                        <Link2 className="w-3.5 h-3.5" /> Internal Links
-                      </span>
-                      <span className="text-xs font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded shadow-sm">
-                        {stats.links}
-                      </span>
-                    </li>
-                  )}
-
-                  {stats.images > 0 && (
-                    <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
-                        <ImageIcon className="w-3.5 h-3.5" /> Images
-                      </span>
-                      <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.images}</span>
-                    </li>
-                  )}
-
-                  {stats.blockquotes > 0 && (
-                    <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5" /> Blockquotes
-                      </span>
-                      <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.blockquotes}</span>
-                    </li>
-                  )}
-
-                  {stats.bold > 0 && (
-                    <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5 font-bold">
-                        B Bold Text
-                      </span>
-                      <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.bold}</span>
-                    </li>
-                  )}
-
-                  {stats.paragraphs > 0 && (
-                    <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5" /> Paragraphs
-                      </span>
-                      <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.paragraphs}</span>
-                    </li>
-                  )}
-                </ul>
-              </div>
+        <aside className="hidden lg:block w-80 shrink-0 space-y-6">
+          {/* Content Stats Section */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden group">
+            <div className="w-full flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-800">
+              <h4 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Content Stats</h4>
             </div>
 
-            {/* Inline Comments Section */}
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden group">
-              <div className="w-full flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-800">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Inline Comments</h4>
+            <div className="p-5">
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-3 h-3" /> Words
+                  </span>
+                  <span className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+                    {stats.words.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" /> Read Time
+                  </span>
+                  <span className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+                    {stats.readTime}m
+                  </span>
+                </div>
               </div>
-              
-              <div className="p-5 block max-h-[60vh] overflow-y-auto">
-                <div className="space-y-4">
-                  {comments.filter(c => !c.parentId).map((comment) => (
-                    <div key={comment._id} className="space-y-3">
-                      <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700 rounded-lg p-4 relative">
-                        {comment.selection && (
-                          <div className="mb-2 text-[10px] font-medium text-zinc-400 italic line-clamp-1 border-l-2 border-zinc-200 dark:border-zinc-700 pl-2">
-                            "{comment.selection}"
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 overflow-hidden relative">
-                              {comment.userAvatar ? (
-                                <NextImage fill src={comment.userAvatar} alt={comment.userName} className="object-cover" referrerPolicy="no-referrer" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-blue-700 dark:text-blue-300">
-                                  {comment.userName.substring(0, 2).toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <span className="text-xs font-bold text-zinc-900 dark:text-white">{comment.userName}</span>
-                          </div>
-                          <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">{getTimeAgo(comment.createdAt)}</span>
+
+              <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-4"></div>
+
+              <ul className="space-y-3">
+                {stats.headings.map((h, i) => (
+                  <li key={i} className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                    <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">{h.label}</span>
+                    <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{h.count}</span>
+                  </li>
+                ))}
+
+                {stats.links > 0 && (
+                  <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                    <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5" /> Internal Links
+                    </span>
+                    <span className="text-xs font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded shadow-sm">
+                      {stats.links}
+                    </span>
+                  </li>
+                )}
+
+                {stats.images > 0 && (
+                  <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                    <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5" /> Images
+                    </span>
+                    <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.images}</span>
+                  </li>
+                )}
+
+                {stats.blockquotes > 0 && (
+                  <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                    <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5" /> Blockquotes
+                    </span>
+                    <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.blockquotes}</span>
+                  </li>
+                )}
+
+                {stats.bold > 0 && (
+                  <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                    <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5 font-bold">
+                      B Bold Text
+                    </span>
+                    <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.bold}</span>
+                  </li>
+                )}
+
+                {stats.paragraphs > 0 && (
+                  <li className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                    <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5" /> Paragraphs
+                    </span>
+                    <span className="text-xs font-bold bg-white dark:bg-zinc-700 px-2.5 py-1 rounded shadow-sm text-zinc-900 dark:text-white border border-zinc-100 dark:border-zinc-600">{stats.paragraphs}</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+
+          {/* Inline Comments Section */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden group">
+            <div className="w-full flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-800">
+              <h4 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Inline Comments</h4>
+            </div>
+
+            <div className="p-5 block max-h-[60vh] overflow-y-auto">
+              <div className="space-y-4">
+                {comments.filter(c => !c.parentId).map((comment) => (
+                  <div key={comment._id} className="space-y-3">
+                    <div className={cn(
+                      "border rounded-lg p-4 relative transition-all",
+                      comment.isResolved
+                        ? "bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/40 opacity-80"
+                        : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-700"
+                    )}>
+                      {comment.selection && (
+                        <div className="mb-2 text-[10px] font-medium text-zinc-400 italic line-clamp-1 border-l-2 border-zinc-200 dark:border-zinc-700 pl-2">
+                          "{comment.selection}"
                         </div>
-                        <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed mb-3">
-                          {comment.text}
-                        </p>
-                        {session && (
-                          <button 
+                      )}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 overflow-hidden relative">
+                            {comment.userAvatar ? (
+                              <NextImage fill src={comment.userAvatar} alt={comment.userName} className="object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                                {comment.userName.substring(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs font-bold text-zinc-900 dark:text-white">{comment.userName}</span>
+                        </div>
+                        {comment.isResolved ? (
+                          <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" /> Resolved
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">{getTimeAgo(comment.createdAt)}</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed mb-3">
+                        {comment.text}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {session && !comment.isResolved && (
+                          <button
                             onClick={() => {
                               setIsCommentModalOpen(true);
                               setReplyTo(comment._id);
                             }}
-                            className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline"
+                            className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline cursor-pointer"
                           >
                             <Reply className="w-3 h-3" /> Reply
                           </button>
                         )}
+                        {session && !comment.isResolved && (
+                          <button
+                            onClick={() => handleResolveComment(comment._id)}
+                            className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 hover:text-emerald-600 ml-auto flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <CheckCircle className="w-3 h-3" /> Resolve
+                          </button>
+                        )}
+                        {comment.isResolved && (
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1 ml-auto">
+                            <CheckCircle className="w-3.5 h-3.5" /> Resolved
+                          </span>
+                        )}
                       </div>
+                    </div>
 
-                      {/* Replies */}
-                      {comments.filter(r => r.parentId === comment._id).map((reply) => (
-                        <div key={reply._id} className="ml-6 bg-zinc-50/50 dark:bg-zinc-800/30 border border-zinc-100 dark:border-zinc-700/50 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden relative">
-                                {reply.userAvatar ? (
-                                  <NextImage fill src={reply.userAvatar} alt={reply.userName} className="object-cover" referrerPolicy="no-referrer" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-zinc-600 dark:text-zinc-400">
-                                    {reply.userName.substring(0, 2).toUpperCase()}
-                                  </div>
-                                )}
-                              </div>
-                              <span className="text-[11px] font-bold text-zinc-900 dark:text-white">{reply.userName}</span>
+                    {/* Replies */}
+                    {comments.filter(r => r.parentId === comment._id).map((reply) => (
+                      <div key={reply._id} className="ml-6 bg-zinc-50/50 dark:bg-zinc-800/30 border border-zinc-100 dark:border-zinc-700/50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden relative">
+                              {reply.userAvatar ? (
+                                <NextImage fill src={reply.userAvatar} alt={reply.userName} className="object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-zinc-600 dark:text-zinc-400">
+                                  {reply.userName.substring(0, 2).toUpperCase()}
+                                </div>
+                              )}
                             </div>
-                            <span className="text-[9px] font-medium text-zinc-500 dark:text-zinc-400">{getTimeAgo(reply.createdAt)}</span>
+                            <span className="text-[11px] font-bold text-zinc-900 dark:text-white">{reply.userName}</span>
                           </div>
-                          <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                            {reply.text}
-                          </p>
+                          <span className="text-[9px] font-medium text-zinc-500 dark:text-zinc-400">{getTimeAgo(reply.createdAt)}</span>
                         </div>
-                      ))}
-                    </div>
-                  ))}
-                  {comments.length === 0 && (
-                    <div className="text-center py-6 text-zinc-400 text-sm">
-                      No comments yet. Select text to add one!
-                    </div>
-                  )}
-                </div>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                          {reply.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {comments.length === 0 && (
+                  <div className="text-center py-6 text-zinc-400 text-sm">
+                    No comments yet. Select text to add one!
+                  </div>
+                )}
               </div>
             </div>
+          </div>
         </aside>
       </main>
 
@@ -571,14 +612,14 @@ export default function LivePreviewPage() {
                 />
               </div>
               <div className="p-6 bg-zinc-50 dark:bg-zinc-800/50 flex justify-end gap-3">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsCommentModalOpen(false)}
                   className="px-4 py-2 text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="px-6 py-2 bg-primary text-white font-bold text-sm rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
                 >
@@ -590,7 +631,7 @@ export default function LivePreviewPage() {
           </div>
         </div>
       )}
-      
+
       {/* Status Confirmation Modal */}
       {isStatusModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
@@ -607,14 +648,14 @@ export default function LivePreviewPage() {
               </p>
             </div>
             <div className="p-6 bg-zinc-50 dark:bg-zinc-800/50 flex justify-end gap-3">
-              <button 
+              <button
                 type="button"
                 onClick={() => setIsStatusModalOpen(false)}
                 className="px-4 py-2 text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
               >
                 No, Keep Approved
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => updateDocumentStatus('changes_requested')}
                 className="px-6 py-2 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
