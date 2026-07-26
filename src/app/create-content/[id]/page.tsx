@@ -33,8 +33,8 @@ export default function CreateContentPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const id = params.id as string;
-  const aiGenerationId = searchParams.get('aiGenerationId');
+  const id = (params?.id as string) || "new";
+  const aiGenerationId = searchParams?.get('aiGenerationId');
 
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);

@@ -35,7 +35,7 @@ export function Sidebar() {
     )}>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
         {menuItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (item.href === '/create-content' && pathname.startsWith('/create-content'));
           return (
             <Link
               key={item.label}

@@ -1,5 +1,7 @@
-import { redirect } from 'next/navigation';
+'use client';
 
-export default function CreateContentRedirect() {
-  redirect('/create-content/new');
+import CreateContentEditor from './[id]/page';
+
+export default function CreateContentPage() {
+  return <CreateContentEditor />;
 }

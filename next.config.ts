@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: "/opt/butterscribe",
+    root: "/Users/arunbiradar/Developer/Work/butterscribe",
   },
   images: {
     remotePatterns: [

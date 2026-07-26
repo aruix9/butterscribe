@@ -33,7 +33,7 @@ const PrimaryNavigation = ({ openMenu, setOpenMenu }: { openMenu: boolean; setOp
       <nav className='lg:flex items-center h-full'>
         <ul className='flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-2 p-8 lg:p-0'>
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || (item.href === '/create-content' && pathname.startsWith('/create-content'));
             return (
               <li key={item.href}>
                 <Link 
