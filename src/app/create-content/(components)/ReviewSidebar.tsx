@@ -1,27 +1,44 @@
 'use client';
 
-import { useState } from "react";
-import { CheckCircle2, MessageSquare, Reply, Send, Loader2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import { 
+  CheckCircle2, MessageSquare, Reply, Send, Loader2, Sparkles, 
+  BarChart3, Copy, Check, FileText, Target, Award, AlertCircle, ChevronRight 
+} from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import { Editor } from "@tiptap/react";
 
 interface ReviewSidebarProps {
   isReviewMode: boolean;
   comments?: any[];
   onRefreshComments?: () => void;
   documentId?: string | null;
+  aiGeneration?: any;
+  editor?: Editor | null;
+  title?: string;
 }
 
-export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, documentId }: ReviewSidebarProps) {
+export function ReviewSidebar({ 
+  isReviewMode, 
+  comments = [], 
+  onRefreshComments, 
+  documentId,
+  aiGeneration,
+  editor,
+  title = ""
+}: ReviewSidebarProps) {
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'strategy' | 'optimization'>('strategy');
+  const [copiedStrategy, setCopiedStrategy] = useState(false);
 
   const topLevelComments = comments.filter(c => !c.parentId);
-  const openCount = topLevelComments.length;
-
+  const openCount = topLevelComments.filter(c => !c.isResolved).length;
 
   const getTimeAgo = (dateStr: string) => {
     if (!dateStr) return "Just now";
@@ -86,8 +103,62 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
     }
   };
 
+  const handleCopyStrategy = () => {
+    if (!aiGeneration?.response) return;
+    navigator.clipboard.writeText(aiGeneration.response);
+    setCopiedStrategy(true);
+    toast.success("Strategy copied to clipboard!");
+    setTimeout(() => setCopiedStrategy(false), 2000);
+  };
+
+  // Dynamically compute optimization stats from editor
+  const contentStats = useMemo(() => {
+    if (!editor) return { words: 0, headings: 0, paragraphs: 0, keywords: [], seoScore: 70, readability: "Good" };
+    
+    const text = editor.getText() || "";
+    const html = editor.getHTML() || "";
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const headings = (html.match(/<h[1-6]/g) || []).length;
+    const paragraphs = (html.match(/<p/g) || []).length;
+    
+    // Extract keyword frequency (excluding stop words)
+    const stopWords = new Set(['the', 'and', 'a', 'to', 'of', 'in', 'i', 'is', 'that', 'it', 'on', 'you', 'this', 'for', 'but', 'with', 'are', 'have', 'be', 'at', 'or', 'as', 'was', 'so', 'if', 'out', 'not']);
+    const wordCounts: { [key: string]: number } = {};
+    text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).forEach(w => {
+      if (w.length > 3 && !stopWords.has(w)) {
+        wordCounts[w] = (wordCounts[w] || 0) + 1;
+      }
+    });
+
+    const sortedKeywords = Object.entries(wordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([word, count]) => ({
+        word,
+        count,
+        density: words > 0 ? ((count / words) * 100).toFixed(1) : "0"
+      }));
+
+    // Calculate dynamic SEO score
+    let score = 50;
+    if (words >= 300) score += 20;
+    else if (words >= 150) score += 10;
+    if (headings >= 2) score += 15;
+    if (title && title.length >= 10) score += 15;
+    score = Math.min(score, 98);
+
+    return {
+      words,
+      headings,
+      paragraphs,
+      keywords: sortedKeywords,
+      seoScore: score,
+      readability: words > 200 ? "Grade 8 - Very Clear" : "Needs More Content"
+    };
+  }, [editor, title]);
+
   return (
-    <aside className="hidden xl:flex w-80 flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col overflow-y-auto transition-colors">
+    <aside className="hidden xl:flex w-80 flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col overflow-y-auto transition-colors h-[calc(100vh-12rem)]">
       {isReviewMode ? (
         <div className="flex flex-col h-full font-sans">
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-10 flex justify-between items-center">
@@ -97,7 +168,7 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
             </div>
             <span className={cn(
               "text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider",
-              openCount > 0
+              openCount > 0 
                 ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                 : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
             )}>
@@ -116,8 +187,8 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
                 const replies = comments.filter(c => c.parentId === comment._id);
 
                 return (
-                  <div
-                    key={comment._id}
+                  <div 
+                    key={comment._id} 
                     className={cn(
                       "rounded-xl border p-4 shadow-xs relative transition-all",
                       comment.isResolved
@@ -137,7 +208,7 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
                         </div>
                         <span className="text-xs font-bold text-zinc-900 dark:text-white">{comment.userName}</span>
                       </div>
-
+                      
                       {comment.isResolved ? (
                         <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" /> Resolved
@@ -243,39 +314,164 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
           </div>
         </div>
       ) : (
-        <div className="p-6">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-2 tracking-tight">Optimization Suite</h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">Real-time content analysis</p>
-
-          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 shadow-xs">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">SEO Score</span>
-              <span className="text-sm font-semibold text-primary">85/100</span>
+        <div className="flex flex-col h-full font-sans">
+          {/* Segmented Tab Switcher */}
+          <div className="sticky top-0 z-10">
+            <div className="p-2 pb-0 grid grid-cols-2 bg-zinc-100 gap-1">
+              <button
+                onClick={() => setActiveTab('strategy')}
+                className={cn(
+                  "py-2 px-3 text-xs rounded-0 rounded-t-md font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-none",
+                  activeTab === 'strategy'
+                    ? "bg-white ext-zinc-900 dark:text-white"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+                <span>AI Strategy</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('optimization')}
+                className={cn(
+                  "py-2 px-3 text-xs rounded-0 rounded-t-md font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-none",
+                  activeTab === 'optimization'
+                    ? "bg-white ext-zinc-900 dark:text-white"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                )}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Optimization</span>
+              </button>
             </div>
-            <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2.5 mb-2 rounded-full overflow-hidden">
-              <div className="bg-primary h-full transition-all duration-500" style={{ width: '85%' }}></div>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">Good readability. Add more keywords.</p>
           </div>
 
-          <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3 tracking-wide uppercase text-[10px]">Keyword Density</h4>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-xs font-semibold border border-blue-100 dark:border-blue-900/30 flex items-center gap-1.5 transition-colors">
-              AI <span className="bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded text-[10px]">12</span>
-            </span>
-            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-xs font-semibold border border-blue-100 dark:border-blue-900/30 flex items-center gap-1.5 transition-colors">
-              Ecosystem <span className="bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded text-[10px]">8</span>
-            </span>
-            <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-semibold border border-zinc-200 dark:border-zinc-800 flex items-center gap-1.5 transition-colors">
-              Generative <span className="bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[10px]">5</span>
-            </span>
-            <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-semibold border border-zinc-200 dark:border-zinc-800 flex items-center gap-1.5 transition-colors">
-              Models <span className="bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[10px]">3</span>
-            </span>
-            <span className="px-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-full text-xs font-semibold border border-red-100 dark:border-blue-900/30 flex items-center gap-1.5 transition-colors">
-              Neural <span className="bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 rounded text-[10px]">1</span>
-            </span>
-          </div>
+          {/* TAB 1: AI Ghostwriter Strategy Content */}
+          {activeTab === 'strategy' && (
+            <div className="space-y-5 flex-1 overflow-y-auto bg-white">
+              {!aiGeneration ? (
+                <div className="p-8 text-center text-zinc-400 text-xs flex flex-col items-center justify-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-zinc-800 dark:text-zinc-200 text-sm mb-1">No Linked AI Strategy</p>
+                    <p className="text-zinc-400 leading-relaxed">
+                      Generate strategy prompts from the Dashboard to unlock customized ghostwriting suggestions.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* AI Response Strategy Content */}
+                  <div className="ai-outline p-5 pb-0 prose prose-xs max-w-none prose-p:text-xs prose-p:leading-relaxed prose-li:text-xs text-zinc-800 text-base dark:text-zinc-300">
+                    <ReactMarkdown>{aiGeneration.response}</ReactMarkdown>
+                  </div>
+
+                  {/* Prompt Banner */}
+                  <div className="bg-blue-50 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900/40 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> Target Prompt Strategy
+                      </span>
+                      <button 
+                        onClick={handleCopyStrategy}
+                        className="text-[10px] font-bold text-blue-700 dark:text-blue-300 hover:underline flex items-center gap-1"
+                      >
+                        {copiedStrategy ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        {copiedStrategy ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-900 dark:text-white leading-snug">
+                      {aiGeneration.prompt}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: Complete Optimization Suite */}
+          {activeTab === 'optimization' && (
+            <div className="p-5 space-y-5 flex-1 overflow-y-auto">
+              {/* Overall SEO & Quality Score */}
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-emerald-500" /> SEO & Content Score
+                  </span>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                    {contentStats.seoScore}/100
+                  </span>
+                </div>
+                <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2.5 mb-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-emerald-500 h-full transition-all duration-500 rounded-full" 
+                    style={{ width: `${contentStats.seoScore}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                  {contentStats.readability}
+                </p>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Word Count</span>
+                  <p className="text-lg font-black text-zinc-900 dark:text-white mt-1">{contentStats.words}</p>
+                </div>
+                <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Headings</span>
+                  <p className="text-lg font-black text-zinc-900 dark:text-white mt-1">{contentStats.headings}</p>
+                </div>
+              </div>
+
+              {/* Real-time Keyword Density Analyzer */}
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 mb-3 tracking-wide uppercase text-[10px]">
+                  Top Keyword Density
+                </h4>
+                {contentStats.keywords.length === 0 ? (
+                  <p className="text-xs text-zinc-400 italic">Start typing content to analyze keyword density.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {contentStats.keywords.map(({ word, count, density }) => (
+                      <div key={word} className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/50 px-3 py-1.5 rounded-lg border border-zinc-100 dark:border-zinc-800 text-xs">
+                        <span className="font-semibold text-zinc-800 dark:text-zinc-200 capitalize">{word}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-zinc-400">{count}x</span>
+                          <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] px-1.5 py-0.5 rounded font-bold">
+                            {density}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Interactive Optimization Checklist */}
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 mb-3 tracking-wide uppercase text-[10px]">
+                  Content Checklist
+                </h4>
+                <ul className="space-y-2 text-xs">
+                  <li className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                    <CheckCircle2 className={cn("w-4 h-4", title ? "text-emerald-500" : "text-zinc-300")} />
+                    <span>Title defined</span>
+                  </li>
+                  <li className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                    <CheckCircle2 className={cn("w-4 h-4", contentStats.words >= 300 ? "text-emerald-500" : "text-zinc-300")} />
+                    <span>Target length (300+ words)</span>
+                  </li>
+                  <li className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                    <CheckCircle2 className={cn("w-4 h-4", contentStats.headings >= 2 ? "text-emerald-500" : "text-zinc-300")} />
+                    <span>Subheadings used for structure</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </aside>

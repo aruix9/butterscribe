@@ -210,3 +210,23 @@
   mark { background-color: #fef08a; border-radius: 0.125rem; padding-left: 0.125rem; padding-right: 0.125rem; }
   .dark & mark { background-color: rgba(253, 224, 71, 0.2); color: #fde047; }
 }
+
+.ai-outline h2, 
+.ai-outline ol , 
+.ai-outline hr {
+  margin-bottom: 16px;
+}
+.ai-outline h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.ai-outline ol {
+  font-size: 14px;
+  list-style: auto;
+  margin-left: 16px;
+}
+.ai-outline ol ol {
+  font-size: 13px;
+  margin-left: 8px;
+  list-style: disc;
+}

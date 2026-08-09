@@ -49,9 +49,7 @@ export default function CreateContentPage() {
   const [title, setTitle] = useState("New Document");
   const [documentId, setDocumentId] = useState<string | null>(id !== "new" ? id : null);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [status, setStatus] = useState<string>("draft");
-  const lastSavedContent = useRef<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
@@ -140,7 +138,6 @@ export default function CreateContentPage() {
             setTitle(data.title);
             setContent(data.body);
             setStatus(data.status);
-            lastSavedContent.current = data.body;
             // If status is changes_requested, automatically open Review Mode
             if (data.status === 'changes_requested') {
               setIsReviewMode(true);
@@ -192,8 +189,6 @@ export default function CreateContentPage() {
         setDocumentId(data._id);
         router.replace(`/create-content/${data._id}`);
       }
-      lastSavedContent.current = currentContent;
-      setLastSaved(new Date());
       if (showToast) toast.success('Document saved successfully');
     } catch (error) {
       console.error(error);
@@ -202,21 +197,6 @@ export default function CreateContentPage() {
       setIsSaving(false);
     }
   }, [documentId, title, router, editor, status, aiGenerationId]);
-
-  // Autosave effect
-  useEffect(() => {
-    if (status === 'approved') return;
-    const interval = Number(process.env.NEXT_PUBLIC_AUTOSAVE_INTERVAL) || 30000;
-    const timer = setInterval(() => {
-      // @ts-ignore
-      const currentContent = editor?.getHTML();
-      if (currentContent && currentContent !== '<p></p>' && currentContent !== lastSavedContent.current) {
-        handleSave(false);
-      }
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, [handleSave, editor, status]);
 
   useEffect(() => {
     if (editor && content) {
@@ -257,7 +237,7 @@ export default function CreateContentPage() {
           status={status}
           title={title}
         />
-        <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-80px)] pb-16">
+        <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-12rem)]">
           {/* Document Outline Sidebar */}
           {isOutlineOpen && <DocumentOutline headings={headings} editor={editor} />}
 
@@ -316,19 +296,13 @@ export default function CreateContentPage() {
             comments={comments}
             onRefreshComments={fetchComments}
             documentId={documentId || id}
+            aiGeneration={aiGeneration}
+            editor={editor}
+            title={title}
           />
         </div>
 
         <Footer />
-        <div className="absolute bottom-6 right-6 flex items-center gap-3">
-          <div className={cn(
-            "w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]",
-            isSaving ? "bg-amber-500" : "bg-green-500"
-          )}></div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-            {isSaving ? "Saving..." : lastSaved ? `Last saved at ${lastSaved.toLocaleTimeString()}` : "Autosaved"}
-          </span>
-        </div>
 
         <EditorModals
           editor={editor}

@@ -6,6 +6,7 @@ import { connectToDatabase } from "@/lib/db";
 import AiGeneration from "@/models/aiGeneration";
 import Document from "@/models/document";
 import Client from "@/models/client";
+import { systemPrompt as defaultSystemPrompt } from "../../../../data";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || "");
 
@@ -37,9 +38,9 @@ export async function POST(req: NextRequest) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
-    const systemPrompt = customClientContext;
+    const activeSystemPrompt = customClientContext.trim() ? customClientContext : defaultSystemPrompt;
 
-    const result = await model.generateContent([systemPrompt, prompt]);
+    const result = await model.generateContent([activeSystemPrompt, prompt]);
     const response = await result.response;
     const text = response.text();
 
