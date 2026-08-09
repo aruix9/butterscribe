@@ -1,27 +1,49 @@
 'use client';
 
 import { useState } from "react";
-import { CheckCircle2, MessageSquare, Reply, Send, Loader2 } from "lucide-react";
+import { 
+  CheckCircle2, MessageSquare, Reply, Send, Loader2, Sparkles, Plus, RefreshCw
+} from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import { Editor } from "@tiptap/react";
 
 interface ReviewSidebarProps {
   isReviewMode: boolean;
   comments?: any[];
   onRefreshComments?: () => void;
   documentId?: string | null;
+  aiGeneration?: any;
+  onAiGenerated?: (aiGen: any) => void;
+  editor?: Editor | null;
+  title?: string;
 }
 
-export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, documentId }: ReviewSidebarProps) {
+export function ReviewSidebar({ 
+  isReviewMode, 
+  comments = [], 
+  onRefreshComments, 
+  documentId,
+  aiGeneration,
+  onAiGenerated
+}: ReviewSidebarProps) {
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
-  const topLevelComments = comments.filter(c => !c.parentId);
-  const openCount = topLevelComments.length;
+  // AI Strategy prompt form states
+  const [inputPrompt, setInputPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [localAiGen, setLocalAiGen] = useState<any>(null);
+  const [isFormVisible, setIsFormVisible] = useState(false);
 
+  const activeAiGen = aiGeneration || localAiGen;
+
+  const topLevelComments = comments.filter(c => !c.parentId);
+  const openCount = topLevelComments.filter(c => !c.isResolved).length;
 
   const getTimeAgo = (dateStr: string) => {
     if (!dateStr) return "Just now";
@@ -80,14 +102,54 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
       if (onRefreshComments) onRefreshComments();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to post reply");
+      toast.error(err.message || "Could not post reply");
     } finally {
       setIsSubmittingReply(false);
     }
   };
 
+  const handleGenerateStrategy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputPrompt.trim()) return;
+
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: inputPrompt.trim(),
+          documentId: (documentId && documentId !== 'new') ? documentId : undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to generate AI strategy");
+      }
+
+      const data = await res.json();
+      const newGen = {
+        prompt: inputPrompt.trim(),
+        response: data.response || data.text,
+        title: data.title || inputPrompt.trim()
+      };
+
+      setLocalAiGen(newGen);
+      if (onAiGenerated) onAiGenerated(newGen);
+      setIsFormVisible(false);
+      setInputPrompt("");
+      toast.success("AI Strategy generated successfully!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to generate strategy");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
-    <aside className="hidden xl:flex w-80 flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col overflow-y-auto transition-colors">
+    <aside className="hidden xl:flex w-80 flex-shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col overflow-y-auto transition-colors h-[calc(100vh-12rem)]">
       {isReviewMode ? (
         <div className="flex flex-col h-full font-sans">
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-10 flex justify-between items-center">
@@ -97,7 +159,7 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
             </div>
             <span className={cn(
               "text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider",
-              openCount > 0
+              openCount > 0 
                 ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                 : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
             )}>
@@ -116,8 +178,8 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
                 const replies = comments.filter(c => c.parentId === comment._id);
 
                 return (
-                  <div
-                    key={comment._id}
+                  <div 
+                    key={comment._id} 
                     className={cn(
                       "rounded-xl border p-4 shadow-xs relative transition-all",
                       comment.isResolved
@@ -137,7 +199,7 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
                         </div>
                         <span className="text-xs font-bold text-zinc-900 dark:text-white">{comment.userName}</span>
                       </div>
-
+                      
                       {comment.isResolved ? (
                         <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" /> Resolved
@@ -243,38 +305,89 @@ export function ReviewSidebar({ isReviewMode, comments = [], onRefreshComments, 
           </div>
         </div>
       ) : (
-        <div className="p-6">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-2 tracking-tight">Optimization Suite</h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">Real-time content analysis</p>
-
-          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 shadow-xs">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">SEO Score</span>
-              <span className="text-sm font-semibold text-primary">85/100</span>
+        <div className="flex flex-col h-full font-sans">
+          {/* AI Ghostwriter Strategy Sidebar Header */}
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight">AI Strategy</h3>
             </div>
-            <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2.5 mb-2 rounded-full overflow-hidden">
-              <div className="bg-primary h-full transition-all duration-500" style={{ width: '85%' }}></div>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">Good readability. Add more keywords.</p>
+            {activeAiGen && !isFormVisible && (
+              <button 
+                onClick={() => setIsFormVisible(true)}
+                className="text-[10px] font-bold text-zinc-500 hover:text-primary flex items-center gap-1 transition-colors"
+                title="Generate New Strategy"
+              >
+                <Plus className="w-3.5 h-3.5" /> New
+              </button>
+            )}
+            
+            {activeAiGen && isFormVisible && (
+              <button 
+                type="button" 
+                onClick={() => setIsFormVisible(false)}
+                className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600"
+              >
+                Cancel
+              </button>
+            )}
           </div>
 
-          <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3 tracking-wide uppercase text-[10px]">Keyword Density</h4>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-xs font-semibold border border-blue-100 dark:border-blue-900/30 flex items-center gap-1.5 transition-colors">
-              AI <span className="bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded text-[10px]">12</span>
-            </span>
-            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-xs font-semibold border border-blue-100 dark:border-blue-900/30 flex items-center gap-1.5 transition-colors">
-              Ecosystem <span className="bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded text-[10px]">8</span>
-            </span>
-            <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-semibold border border-zinc-200 dark:border-zinc-800 flex items-center gap-1.5 transition-colors">
-              Generative <span className="bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[10px]">5</span>
-            </span>
-            <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-full text-xs font-semibold border border-zinc-200 dark:border-zinc-800 flex items-center gap-1.5 transition-colors">
-              Models <span className="bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[10px]">3</span>
-            </span>
-            <span className="px-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-full text-xs font-semibold border border-red-100 dark:border-blue-900/30 flex items-center gap-1.5 transition-colors">
-              Neural <span className="bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 rounded text-[10px]">1</span>
-            </span>
+          <div className="space-y-5 flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
+            {/* Show Prompt Input Form if no active AI strategy or if user clicked New */}
+            {(!activeAiGen || isFormVisible) ? (
+              <div className="p-5 space-y-4">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                  Enter your content topic or target prompt below to generate a structured AI content outline & keywords strategy.
+                </p>
+                <form onSubmit={handleGenerateStrategy} className="space-y-3">
+                  <textarea
+                    value={inputPrompt}
+                    onChange={(e) => setInputPrompt(e.target.value)}
+                    placeholder="Enter content topic or prompt e.g., 5 B2B SaaS Growth Strategies for 2026..."
+                    rows={4}
+                    required
+                    className="w-full p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isGenerating || !inputPrompt.trim()}
+                    className="w-full py-2.5 px-4 bg-primary text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Generate Strategy</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <>
+                {/* AI Response Strategy Content */}
+                <div className="ai-outline p-5 pb-0 prose prose-xs max-w-none prose-p:text-xs prose-p:leading-relaxed prose-li:text-xs text-zinc-800 dark:text-zinc-300">
+                  <ReactMarkdown>{activeAiGen.response}</ReactMarkdown>
+                </div>
+
+                {/* Prompt Banner */}
+                <div className="bg-blue-50/70 dark:bg-blue-950/20 border-t border-blue-100 dark:border-blue-900/40 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Target Prompt Strategy
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-zinc-900 dark:text-white leading-snug">
+                    {activeAiGen.prompt}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
