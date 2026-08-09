@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { prompt, clientId, clientSystemPrompt } = await req.json();
+    const { prompt, clientId, clientSystemPrompt, documentId } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
@@ -51,28 +51,39 @@ export async function POST(req: NextRequest) {
     const userId = session.user.id;
     const title = prompt.length > 50 ? `${prompt.substring(0, 50)}...` : prompt;
 
-    // 1. Create a blank draft document for the user to write in
-    const newDocument = await Document.create({
-      title: title,
-      body: '',
-      userId,
-      clientId: clientId || undefined,
-      status: 'draft',
-    });
+    let targetDocId = (documentId && documentId !== 'new') ? documentId : null;
+    if (!targetDocId) {
+      // 1. Create a blank draft document for the user to write in
+      const newDocument = await Document.create({
+        title: title,
+        body: '',
+        userId,
+        clientId: clientId || undefined,
+        status: 'draft',
+      });
+      targetDocId = newDocument._id.toString();
+    }
 
-    // 2. Create the AI generation record, linked to the new document
+    // 2. Create the AI generation record, linked to the document
     const aiGen = await AiGeneration.create({
       title: title,
       prompt: prompt,
       response: text,
       userId,
-      documentId: newDocument._id,
+      documentId: targetDocId,
     });
 
     // 3. Back-link the document to its AI generation
-    await Document.findByIdAndUpdate(newDocument._id, { aiGenerationId: aiGen._id });
+    await Document.findByIdAndUpdate(targetDocId, { aiGenerationId: aiGen._id });
 
-    return NextResponse.json({ text, documentId: newDocument._id.toString(), aiGenerationId: aiGen._id.toString() });
+    return NextResponse.json({ 
+      text, 
+      prompt,
+      response: text,
+      title,
+      documentId: targetDocId.toString(), 
+      aiGenerationId: aiGen._id.toString() 
+    });
   } catch (error: any) {
     console.error("Gemini Generation Error:", error);
     return NextResponse.json({ error: error.message || "Failed to generate content" }, { status: 500 });

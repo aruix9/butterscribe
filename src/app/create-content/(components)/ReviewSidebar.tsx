@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { 
-  CheckCircle2, MessageSquare, Reply, Send, Loader2, Sparkles 
+  CheckCircle2, MessageSquare, Reply, Send, Loader2, Sparkles, Plus, RefreshCw
 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ interface ReviewSidebarProps {
   onRefreshComments?: () => void;
   documentId?: string | null;
   aiGeneration?: any;
+  onAiGenerated?: (aiGen: any) => void;
   editor?: Editor | null;
   title?: string;
 }
@@ -25,12 +26,21 @@ export function ReviewSidebar({
   comments = [], 
   onRefreshComments, 
   documentId,
-  aiGeneration
+  aiGeneration,
+  onAiGenerated
 }: ReviewSidebarProps) {
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  // AI Strategy prompt form states
+  const [inputPrompt, setInputPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [localAiGen, setLocalAiGen] = useState<any>(null);
+  const [isFormVisible, setIsFormVisible] = useState(false);
+
+  const activeAiGen = aiGeneration || localAiGen;
 
   const topLevelComments = comments.filter(c => !c.parentId);
   const openCount = topLevelComments.filter(c => !c.isResolved).length;
@@ -92,9 +102,49 @@ export function ReviewSidebar({
       if (onRefreshComments) onRefreshComments();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to post reply");
+      toast.error(err.message || "Could not post reply");
     } finally {
       setIsSubmittingReply(false);
+    }
+  };
+
+  const handleGenerateStrategy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputPrompt.trim()) return;
+
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: inputPrompt.trim(),
+          documentId: (documentId && documentId !== 'new') ? documentId : undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to generate AI strategy");
+      }
+
+      const data = await res.json();
+      const newGen = {
+        prompt: inputPrompt.trim(),
+        response: data.response || data.text,
+        title: data.title || inputPrompt.trim()
+      };
+
+      setLocalAiGen(newGen);
+      if (onAiGenerated) onAiGenerated(newGen);
+      setIsFormVisible(false);
+      setInputPrompt("");
+      toast.success("AI Strategy generated successfully!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to generate strategy");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -256,32 +306,73 @@ export function ReviewSidebar({
         </div>
       ) : (
         <div className="flex flex-col h-full font-sans">
-          {/* AI Ghostwriter Strategy Sidebar */}
+          {/* AI Ghostwriter Strategy Sidebar Header */}
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-10 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" />
               <h3 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight">AI Strategy</h3>
             </div>
+            {activeAiGen && !isFormVisible && (
+              <button 
+                onClick={() => setIsFormVisible(true)}
+                className="text-[10px] font-bold text-zinc-500 hover:text-primary flex items-center gap-1 transition-colors"
+                title="Generate New Strategy"
+              >
+                <Plus className="w-3.5 h-3.5" /> New
+              </button>
+            )}
+            
+            {activeAiGen && isFormVisible && (
+              <button 
+                type="button" 
+                onClick={() => setIsFormVisible(false)}
+                className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600"
+              >
+                Cancel
+              </button>
+            )}
           </div>
 
           <div className="space-y-5 flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
-            {!aiGeneration ? (
-              <div className="p-8 text-center text-zinc-400 text-xs flex flex-col items-center justify-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="font-bold text-zinc-800 dark:text-zinc-200 text-sm mb-1">No Linked AI Strategy</p>
-                  <p className="text-zinc-400 leading-relaxed">
-                    Generate strategy prompts from the Dashboard to unlock customized ghostwriting suggestions.
-                  </p>
-                </div>
+            {/* Show Prompt Input Form if no active AI strategy or if user clicked New */}
+            {(!activeAiGen || isFormVisible) ? (
+              <div className="p-5 space-y-4">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                  Enter your content topic or target prompt below to generate a structured AI content outline & keywords strategy.
+                </p>
+                <form onSubmit={handleGenerateStrategy} className="space-y-3">
+                  <textarea
+                    value={inputPrompt}
+                    onChange={(e) => setInputPrompt(e.target.value)}
+                    placeholder="Enter content topic or prompt e.g., 5 B2B SaaS Growth Strategies for 2026..."
+                    rows={4}
+                    required
+                    className="w-full p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isGenerating || !inputPrompt.trim()}
+                    className="w-full py-2.5 px-4 bg-primary text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Generate Strategy</span>
+                      </>
+                    )}
+                  </button>
+                </form>
               </div>
             ) : (
               <>
                 {/* AI Response Strategy Content */}
                 <div className="ai-outline p-5 pb-0 prose prose-xs max-w-none prose-p:text-xs prose-p:leading-relaxed prose-li:text-xs text-zinc-800 dark:text-zinc-300">
-                  <ReactMarkdown>{aiGeneration.response}</ReactMarkdown>
+                  <ReactMarkdown>{activeAiGen.response}</ReactMarkdown>
                 </div>
 
                 {/* Prompt Banner */}
@@ -292,7 +383,7 @@ export function ReviewSidebar({
                     </span>
                   </div>
                   <p className="text-xs font-semibold text-zinc-900 dark:text-white leading-snug">
-                    {aiGeneration.prompt}
+                    {activeAiGen.prompt}
                   </p>
                 </div>
               </>

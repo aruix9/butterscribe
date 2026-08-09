@@ -283,6 +283,7 @@ export default function CreateContentPage() {
             onRefreshComments={fetchComments}
             documentId={documentId || id}
             aiGeneration={aiGeneration}
+            onAiGenerated={(newGen) => setAiGeneration(newGen)}
             editor={editor}
             title={title}
           />

@@ -153,6 +153,10 @@ function ContentLibraryContent() {
         documents={documents}
         isLoading={isLoading}
         error={error}
+        onDeleteDocument={(deletedId) => {
+          setDocuments(prev => prev.filter(d => d._id !== deletedId));
+          setTotal(prev => Math.max(0, prev - 1));
+        }}
       />
 
       {/* Pagination */}
