@@ -44,7 +44,6 @@ export default function CreateContentPage() {
   const [headings, setHeadings] = useState<{ text: string; level: number; pos: number }[]>([]);
   const [linkModal, setLinkModal] = useState({ isOpen: false, url: '' });
   const [imageModal, setImageModal] = useState({ isOpen: false, url: '' });
-  const [aiGhostwriterModal, setAiGhostwriterModal] = useState({ isOpen: false });
   const [aiGeneration, setAiGeneration] = useState<{ title: string; prompt: string; response: string; createdAt: string } | null>(null);
   const [title, setTitle] = useState("New Document");
   const [documentId, setDocumentId] = useState<string | null>(id !== "new" ? id : null);
@@ -275,19 +274,6 @@ export default function CreateContentPage() {
 
               <EditorContent editor={editor} />
             </div>
-
-            <div className="absolute bottom-6 right-6 flex items-center gap-3">
-              <button
-                onClick={() => setAiGhostwriterModal({ isOpen: true })}
-                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-full px-6 py-3 flex items-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all active:scale-95 group"
-              >
-                <Sparkles className="w-5 h-5 text-primary group-hover:rotate-12 transition-transform" />
-                <span className="text-sm font-semibold text-zinc-900 dark:text-white font-sans">Ask AI Ghostwriter</span>
-                {aiGeneration && (
-                  <span className="ml-1 w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                )}
-              </button>
-            </div>
           </div>
 
           {/* Right Sidebar - Conditional Review & Optimization Suite */}
@@ -311,9 +297,6 @@ export default function CreateContentPage() {
           imageModal={imageModal}
           setImageModal={setImageModal}
           fileInputRef={fileInputRef}
-          aiGhostwriterModal={aiGhostwriterModal}
-          setAiGhostwriterModal={setAiGhostwriterModal}
-          aiGeneration={aiGeneration}
         />
       </main>
     </div>
